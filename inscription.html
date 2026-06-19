@@ -26,7 +26,7 @@
       <p class="eyebrow">Inscription</p>
       <h1 id="signup-title">Cree ton compte.</h1>
       <p class="auth-note">
-        Le mot de passe est hache dans ton navigateur avant sauvegarde locale.
+        Le compte sera enregistre dans Supabase et utilisable sur le site publie.
       </p>
 
       <form class="auth-form" id="signup-form" novalidate>
@@ -57,7 +57,7 @@
 
         <label class="check-row" for="signup-accept">
           <input id="signup-accept" name="accept" type="checkbox" required>
-          <span>Je comprends que ce compte est local a ce navigateur sur GitHub Pages.</span>
+          <span>J'accepte de creer un compte Supabase pour utiliser le site.</span>
         </label>
 
         <button class="button primary full" type="submit">Creer le compte</button>
@@ -76,6 +76,8 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>

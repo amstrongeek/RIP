@@ -27,8 +27,8 @@
         <p class="eyebrow">Pixel web</p>
         <h1>Un site arcade propre avec espace membre.</h1>
         <p class="hero-text">
-          Cette base contient une page d'accueil, une inscription, une connexion
-          et un espace compte utilisables directement dans le navigateur.
+          Cette base contient une page d'accueil, une inscription Supabase,
+          une connexion persistante et un tchat en ligne.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="inscription.html" data-auth-visible="guest">Creer un compte</a>
@@ -48,17 +48,17 @@
       <div class="grid">
         <article class="card">
           <h3>Inscription</h3>
-          <p>Creation de compte avec validation email, pseudo et mot de passe fort.</p>
+          <p>Creation de compte avec Supabase Auth, pseudo et mot de passe fort.</p>
         </article>
 
         <article class="card">
           <h3>Connexion</h3>
-          <p>Verification du compte et ouverture d'une session dans ce navigateur.</p>
+          <p>Verification du compte et session conservee meme apres fermeture du site.</p>
         </article>
 
         <article class="card">
           <h3>Securite</h3>
-          <p>Les mots de passe sont haches avec PBKDF2 via Web Crypto, jamais stockes en clair.</p>
+          <p>Les mots de passe sont geres par Supabase Auth, pas par le JavaScript du site.</p>
         </article>
 
         <article class="card">
@@ -71,26 +71,26 @@
     <section id="projets" class="section split">
       <div>
         <p class="eyebrow">Important</p>
-        <h2>GitHub Pages reste un site statique.</h2>
+        <h2>Supabase garde les comptes et messages.</h2>
       </div>
 
       <div class="project-list">
         <article class="project">
           <span>01</span>
           <strong>Ce qui marche</strong>
-          <small>Un visiteur peut creer un compte et se reconnecter sur le meme navigateur.</small>
+          <small>Un visiteur peut creer un compte Supabase et se reconnecter plus tard.</small>
         </article>
 
         <article class="project">
           <span>02</span>
           <strong>Ce qui est protege</strong>
-          <small>Le mot de passe n'est pas sauvegarde en clair dans le stockage local.</small>
+          <small>Les messages du tchat sont limites aux utilisateurs connectes.</small>
         </article>
 
         <article class="project">
           <span>03</span>
-          <strong>Pour une vraie prod</strong>
-          <small>Il faudra brancher Supabase, Firebase, Auth0 ou un backend avec base de donnees.</small>
+          <strong>Base en ligne</strong>
+          <small>Supabase stocke les comptes, profils et messages dans une vraie base.</small>
         </article>
       </div>
     </section>
@@ -108,6 +108,8 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>

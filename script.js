@@ -22,22 +22,34 @@ function setMessage(element, text, type) {
 
 function humanAuthError(error) {
   const messages = {
-    "crypto-unavailable": "Ouvre le site en HTTPS ou localhost pour utiliser Web Crypto.",
+    "supabase-config-missing": "Supabase n'est pas encore configure.",
     "pseudo-invalid": "Pseudo invalide : 3 a 20 caracteres, lettres, chiffres, tiret ou underscore.",
     "email-invalid": "Email invalide.",
-    "email-exists": "Un compte existe deja avec cet email.",
+    "signup-failed": "Inscription impossible. Verifie l'email ou reessaie plus tard.",
+    "profile-load-failed": "Profil introuvable. Relance le SQL Supabase puis reessaie.",
+    "profile-save-failed": "Profil impossible a enregistrer. Relance le SQL Supabase puis reessaie.",
     "password-weak": "Mot de passe trop faible.",
     "password-mismatch": "Les mots de passe ne correspondent pas.",
-    "terms-required": "Tu dois confirmer que le compte est local a ce navigateur.",
+    "terms-required": "Tu dois accepter la creation d'un compte Supabase.",
     "missing-fields": "Remplis tous les champs.",
-    "invalid-login": "Email ou mot de passe incorrect."
+    "invalid-login": "Email ou mot de passe incorrect, ou email pas encore confirme.",
+    "session-load-failed": "Session Supabase impossible a charger."
   };
 
   return messages[error && error.code] || "Action impossible pour le moment.";
 }
 
-function updateAuthVisibility() {
+async function updateAuthVisibility() {
   const auth = window.RipAuth;
+
+  if (auth && auth.ready) {
+    try {
+      await auth.ready();
+    } catch (error) {
+      console.error("Erreur auth:", error);
+    }
+  }
+
   const user = auth ? auth.currentUser() : null;
 
   document.body.classList.toggle("is-authenticated", Boolean(user));
@@ -75,15 +87,24 @@ function bindSignupForm() {
     data.accept = Boolean(form.querySelector("#signup-accept:checked"));
 
     submit.disabled = true;
-    setMessage(message, "Creation du compte...", null);
+    setMessage(message, "Creation du compte Supabase...", null);
 
     try {
-      await window.RipAuth.register(data);
+      const result = await window.RipAuth.register(data);
+
+      if (result.needsEmailConfirmation) {
+        setMessage(message, "Compte cree. Confirme ton email, puis connecte-toi.", "success");
+        form.reset();
+        submit.disabled = false;
+        return;
+      }
+
       setMessage(message, "Compte cree. Redirection...", "success");
       setTimeout(() => {
         window.location.href = "compte.html";
       }, 650);
     } catch (error) {
+      console.error("Erreur inscription:", error);
       setMessage(message, humanAuthError(error), "error");
       submit.disabled = false;
     }
@@ -106,7 +127,7 @@ function bindLoginForm() {
     const data = Object.fromEntries(new FormData(form));
 
     submit.disabled = true;
-    setMessage(message, "Verification...", null);
+    setMessage(message, "Verification Supabase...", null);
 
     try {
       await window.RipAuth.login(data.email, data.password);
@@ -115,21 +136,29 @@ function bindLoginForm() {
         window.location.href = "compte.html";
       }, 650);
     } catch (error) {
+      console.error("Erreur connexion:", error);
       setMessage(message, humanAuthError(error), "error");
       submit.disabled = false;
     }
   });
 }
 
-function bindAccountPage() {
+async function bindAccountPage() {
   const page = document.querySelector("[data-protected-page]");
 
   if (!page || !window.RipAuth) {
     return;
   }
 
-  const user = window.RipAuth.currentUser();
   const message = document.querySelector("#account-message");
+
+  try {
+    await window.RipAuth.ready();
+  } catch (error) {
+    console.error("Erreur compte:", error);
+  }
+
+  const user = window.RipAuth.currentUser();
 
   if (!user) {
     setMessage(message, "Connecte-toi d'abord. Redirection...", "error");
@@ -160,9 +189,11 @@ function bindAccountPage() {
 
 function bindLogoutButtons() {
   document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+
       if (window.RipAuth) {
-        window.RipAuth.logout();
+        await window.RipAuth.logout();
       }
 
       window.location.href = "connexion.html";
@@ -170,16 +201,18 @@ function bindLogoutButtons() {
   });
 }
 
-onReady(() => {
+onReady(async () => {
   const yearElement = document.querySelector("#year");
 
   if (yearElement) {
     yearElement.textContent = new Date().getFullYear();
   }
 
-  updateAuthVisibility();
+  document.addEventListener("rip-auth-change", updateAuthVisibility);
+
+  await updateAuthVisibility();
   bindSignupForm();
   bindLoginForm();
-  bindAccountPage();
+  await bindAccountPage();
   bindLogoutButtons();
 });

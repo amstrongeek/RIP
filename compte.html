@@ -41,8 +41,8 @@
       <div class="security-warning">
         <strong>Note securite</strong>
         <p>
-          Cette version est adaptee a GitHub Pages : elle protege le mot de passe
-          contre le stockage en clair, mais ne remplace pas une vraie auth serveur.
+          Les comptes sont maintenant geres par Supabase Auth. Ton profil et ta
+          session restent disponibles apres fermeture du site.
         </p>
       </div>
 
@@ -56,6 +56,8 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>

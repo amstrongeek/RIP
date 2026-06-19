@@ -87,23 +87,6 @@ function appendMessage(message) {
   messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
-function validConfig(config) {
-  return Boolean(
-    config
-    && typeof config.url === "string"
-    && config.url.startsWith("https://")
-    && typeof config.anonKey === "string"
-    && config.anonKey.length > 20
-  );
-}
-
-function normalizeProjectUrl(url) {
-  return String(url || "")
-    .trim()
-    .replace(/\/rest\/v1\/?$/, "")
-    .replace(/\/+$/, "");
-}
-
 async function loadMessages(client) {
   const { data, error } = await client
     .from("chat_messages")
@@ -119,12 +102,21 @@ async function loadMessages(client) {
 }
 
 async function startChat() {
+  if (!window.RipSupabase || !window.RipSupabase.isConfigured()) {
+    setupBox.hidden = false;
+    setStatus("Supabase a configurer", "error");
+    setChatEnabled(false);
+    renderMessages([]);
+    return;
+  }
+
   if (!window.RipAuth) {
     setStatus("Auth introuvable", "error");
     setChatEnabled(false);
     return;
   }
 
+  await window.RipAuth.ready();
   const user = window.RipAuth.currentUser();
 
   if (!user) {
@@ -135,19 +127,7 @@ async function startChat() {
     return;
   }
 
-  const config = window.RIP_SUPABASE;
-  const projectUrl = normalizeProjectUrl(config && config.url);
-
-  if (!validConfig({ ...config, url: projectUrl })) {
-    setupBox.hidden = false;
-    setStatus("Supabase a configurer", "error");
-    setChatEnabled(false);
-    renderMessages([]);
-    return;
-  }
-
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  const client = createClient(projectUrl, config.anonKey);
+  const client = await window.RipSupabase.getClient();
 
   setStatus("Connexion au salon...", "");
   setChatEnabled(false);
@@ -203,6 +183,7 @@ async function startChat() {
     });
 
     if (error) {
+      console.error("Erreur envoi:", error);
       setStatus("Envoi impossible", "error");
       setChatEnabled(true);
       return;
@@ -216,4 +197,8 @@ async function startChat() {
 }
 
 setChatEnabled(false);
-startChat();
+startChat().catch((error) => {
+  console.error("Erreur tchat:", error);
+  setStatus("Erreur tchat", "error");
+  setChatEnabled(false);
+});

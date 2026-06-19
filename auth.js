@@ -1,56 +1,13 @@
 (function () {
-  const USERS_KEY = "rip.users.v1";
-  const SESSION_KEY = "rip.session.v1";
-  const ITERATIONS = 210000;
-  const HASH_BITS = 256;
-  const encoder = new TextEncoder();
+  let readyPromise = null;
+  let cachedUser = null;
+  let authSubscription = null;
 
-  function authError(code) {
+  function authError(code, cause) {
     const error = new Error(code);
     error.code = code;
+    error.cause = cause;
     return error;
-  }
-
-  function ensureCrypto() {
-    if (!window.crypto || !window.crypto.subtle) {
-      throw authError("crypto-unavailable");
-    }
-  }
-
-  function bytesToBase64(bytes) {
-    let binary = "";
-
-    bytes.forEach((byte) => {
-      binary += String.fromCharCode(byte);
-    });
-
-    return window.btoa(binary);
-  }
-
-  function base64ToBytes(value) {
-    const binary = window.atob(value);
-    const bytes = new Uint8Array(binary.length);
-
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return bytes;
-  }
-
-  function randomBytes(length) {
-    ensureCrypto();
-
-    const bytes = new Uint8Array(length);
-    window.crypto.getRandomValues(bytes);
-    return bytes;
-  }
-
-  function randomToken(length) {
-    return bytesToBase64(randomBytes(length))
-      .replaceAll("+", "-")
-      .replaceAll("/", "_")
-      .replaceAll("=", "");
   }
 
   function normalizeEmail(email) {
@@ -59,57 +16,6 @@
 
   function normalizePseudo(pseudo) {
     return String(pseudo || "").trim();
-  }
-
-  function readUsers() {
-    try {
-      const users = JSON.parse(window.localStorage.getItem(USERS_KEY) || "[]");
-      return Array.isArray(users) ? users : [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function writeUsers(users) {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-
-  async function hashPassword(password, saltBase64, iterations) {
-    ensureCrypto();
-
-    const keyMaterial = await window.crypto.subtle.importKey(
-      "raw",
-      encoder.encode(password),
-      "PBKDF2",
-      false,
-      ["deriveBits"]
-    );
-
-    const bits = await window.crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt: base64ToBytes(saltBase64),
-        iterations,
-        hash: "SHA-256"
-      },
-      keyMaterial,
-      HASH_BITS
-    );
-
-    return bytesToBase64(new Uint8Array(bits));
-  }
-
-  function constantTimeEqual(base64A, base64B) {
-    const a = base64ToBytes(base64A);
-    const b = base64ToBytes(base64B);
-    const maxLength = Math.max(a.length, b.length);
-    let diff = a.length ^ b.length;
-
-    for (let index = 0; index < maxLength; index += 1) {
-      diff |= (a[index] || 0) ^ (b[index] || 0);
-    }
-
-    return diff === 0;
   }
 
   function passwordScore(password) {
@@ -168,67 +74,177 @@
     return { pseudo, email, password };
   }
 
-  function publicUser(user) {
-    if (!user) {
+  function publicUser(authUser, profile) {
+    if (!authUser) {
       return null;
     }
 
+    const metadataPseudo = normalizePseudo(authUser.user_metadata && authUser.user_metadata.pseudo);
+
     return {
-      id: user.id,
-      pseudo: user.pseudo,
-      email: user.email,
-      createdAt: user.createdAt
+      id: authUser.id,
+      pseudo: normalizePseudo(profile && profile.pseudo) || metadataPseudo || "Player",
+      email: authUser.email || (profile && profile.email) || "",
+      createdAt: (profile && profile.created_at) || authUser.created_at || new Date().toISOString()
     };
   }
 
-  function setSession(user) {
-    window.sessionStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify({
-        userId: user.id,
-        issuedAt: Date.now(),
-        token: randomToken(32)
+  function dispatchAuthChange() {
+    document.dispatchEvent(
+      new CustomEvent("rip-auth-change", {
+        detail: cachedUser
       })
     );
   }
 
-  function currentUser() {
-    try {
-      const session = JSON.parse(window.sessionStorage.getItem(SESSION_KEY) || "null");
-      const users = readUsers();
-      const user = users.find((candidate) => candidate.id === session.userId);
-      return publicUser(user);
-    } catch (error) {
+  async function getSupabase() {
+    if (!window.RipSupabase) {
+      throw authError("supabase-config-missing");
+    }
+
+    return window.RipSupabase.getClient();
+  }
+
+  async function fetchProfile(supabase, authUser) {
+    if (!authUser) {
       return null;
     }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,pseudo,email,created_at")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (error) {
+      throw authError("profile-load-failed", error);
+    }
+
+    return data;
+  }
+
+  async function saveProfile(supabase, authUser, pseudo) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: authUser.id,
+          pseudo: normalizePseudo(pseudo) || "Player",
+          email: authUser.email || ""
+        },
+        { onConflict: "id" }
+      )
+      .select("id,pseudo,email,created_at")
+      .single();
+
+    if (error) {
+      throw authError("profile-save-failed", error);
+    }
+
+    return data;
+  }
+
+  async function ensureProfile(supabase, authUser, pseudo) {
+    const profile = await fetchProfile(supabase, authUser);
+
+    if (profile) {
+      return profile;
+    }
+
+    return saveProfile(
+      supabase,
+      authUser,
+      pseudo || (authUser.user_metadata && authUser.user_metadata.pseudo)
+    );
+  }
+
+  async function refreshUser(sessionUser) {
+    if (!sessionUser) {
+      cachedUser = null;
+      dispatchAuthChange();
+      return null;
+    }
+
+    const supabase = await getSupabase();
+    const profile = await ensureProfile(supabase, sessionUser);
+    cachedUser = publicUser(sessionUser, profile);
+    dispatchAuthChange();
+    return cachedUser;
+  }
+
+  async function ready() {
+    if (readyPromise) {
+      return readyPromise;
+    }
+
+    readyPromise = (async () => {
+      if (!window.RipSupabase || !window.RipSupabase.isConfigured()) {
+        cachedUser = null;
+        return null;
+      }
+
+      const supabase = await getSupabase();
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        throw authError("session-load-failed", error);
+      }
+
+      if (!authSubscription) {
+        const subscriptionResult = supabase.auth.onAuthStateChange((event, session) => {
+          window.setTimeout(() => {
+            if (!session || event === "SIGNED_OUT") {
+              cachedUser = null;
+              dispatchAuthChange();
+              return;
+            }
+
+            refreshUser(session.user).catch(() => {
+              cachedUser = publicUser(session.user, null);
+              dispatchAuthChange();
+            });
+          }, 0);
+        });
+
+        authSubscription = subscriptionResult.data.subscription;
+      }
+
+      return refreshUser(data.session && data.session.user);
+    })();
+
+    return readyPromise;
   }
 
   async function register(input) {
     const data = validateRegistration(input);
-    const users = readUsers();
+    const supabase = await getSupabase();
 
-    if (users.some((user) => user.email === data.email)) {
-      throw authError("email-exists");
+    const { data: authData, error } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          pseudo: data.pseudo
+        }
+      }
+    });
+
+    if (error) {
+      throw authError("signup-failed", error);
     }
 
-    const salt = bytesToBase64(randomBytes(16));
-    const hash = await hashPassword(data.password, salt, ITERATIONS);
-    const user = {
-      id: randomToken(16),
-      pseudo: data.pseudo,
-      email: data.email,
-      createdAt: new Date().toISOString(),
-      password: {
-        algorithm: "PBKDF2-SHA256",
-        iterations: ITERATIONS,
-        salt,
-        hash
-      }
-    };
+    if (!authData.session) {
+      cachedUser = null;
+      return {
+        email: data.email,
+        needsEmailConfirmation: true
+      };
+    }
 
-    writeUsers([...users, user]);
-    setSession(user);
-    return publicUser(user);
+    const profile = await ensureProfile(supabase, authData.user, data.pseudo);
+    cachedUser = publicUser(authData.user, profile);
+    dispatchAuthChange();
+    return cachedUser;
   }
 
   async function login(emailInput, passwordInput) {
@@ -239,25 +255,31 @@
       throw authError("missing-fields");
     }
 
-    const users = readUsers();
-    const user = users.find((candidate) => candidate.email === email);
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    if (!user) {
-      throw authError("invalid-login");
+    if (error || !data.user) {
+      throw authError("invalid-login", error);
     }
 
-    const hash = await hashPassword(password, user.password.salt, user.password.iterations || ITERATIONS);
-
-    if (!constantTimeEqual(hash, user.password.hash)) {
-      throw authError("invalid-login");
-    }
-
-    setSession(user);
-    return publicUser(user);
+    const profile = await ensureProfile(supabase, data.user);
+    cachedUser = publicUser(data.user, profile);
+    dispatchAuthChange();
+    return cachedUser;
   }
 
-  function logout() {
-    window.sessionStorage.removeItem(SESSION_KEY);
+  async function logout() {
+    const supabase = await getSupabase();
+    await supabase.auth.signOut();
+    cachedUser = null;
+    dispatchAuthChange();
+  }
+
+  function currentUser() {
+    return cachedUser;
   }
 
   window.RipAuth = {
@@ -265,6 +287,7 @@
     login,
     logout,
     passwordScore,
+    ready,
     register
   };
 }());

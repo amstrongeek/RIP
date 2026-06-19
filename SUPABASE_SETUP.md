@@ -1,6 +1,6 @@
-# Activer le tchat RIP
+# Activer les comptes et le tchat RIP
 
-Le code du tchat est deja dans le site. Il reste seulement a creer la base Supabase.
+Le code des comptes et du tchat est deja dans le site. Il reste seulement a creer/configurer la base Supabase.
 
 ## 1. Creer le projet
 
@@ -11,13 +11,20 @@ Le code du tchat est deja dans le site. Il reste seulement a creer la base Supab
 5. Choisis une region proche de toi.
 6. Cree le projet et attends la fin du chargement.
 
-## 2. Creer la table de messages
+## 2. Creer les tables Supabase
 
 1. Dans Supabase, ouvre `SQL Editor`.
 2. Clique `New query`.
 3. Copie tout le contenu du fichier `supabase-chat.sql`.
 4. Colle-le dans Supabase.
 5. Clique `Run`.
+
+Le script cree :
+
+- `profiles` pour les pseudos et emails
+- `chat_messages` pour les messages
+- les regles RLS pour securiser les donnees
+- un trigger qui cree un profil a chaque inscription Supabase
 
 ## 3. Recuperer les infos publiques
 
@@ -52,3 +59,9 @@ Ne colle pas une URL qui finit par `/rest/v1/`.
 ```
 
 Ensuite, ouvre `chat.html` sur ton site GitHub Pages.
+
+## Probleme frequent
+
+Si l'inscription dit que l'email doit etre confirme, ouvre ta boite mail et clique le lien Supabase.
+Pour tester plus vite, tu peux aussi aller dans Supabase > Authentication > Sign In / Providers > Email
+et desactiver temporairement la confirmation email.
