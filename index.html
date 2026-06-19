@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RIP | Tchat</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260619-megapack1">
 </head>
 <body class="app-body">
   <header class="site-header app-header">
@@ -64,6 +64,8 @@
 
           <div class="chat-panel">
             <span class="panel-label">Salons</span>
+            <label class="sr-only" for="room-filter">Filtrer les salons</label>
+            <input class="panel-search" id="room-filter" data-room-filter type="search" placeholder="Filtrer salons...">
             <div class="room-list" data-room-list>
               <button type="button" disabled>Chargement...</button>
             </div>
@@ -120,10 +122,14 @@
                 <button type="button" data-quick-message="GG">GG</button>
                 <button type="button" data-quick-message="Salut !">Salut</button>
                 <button type="button" data-quick-message="Je reviens.">AFK</button>
+                <button type="button" data-quick-message="🔥">Feu</button>
+                <button type="button" data-quick-message="💀">Rip</button>
+                <button type="button" data-quick-message="🎮">Game</button>
               </div>
               <button class="button primary" type="submit">Envoyer</button>
             </div>
           </form>
+          <button class="scroll-bottom" type="button" data-scroll-bottom hidden>Bas</button>
         </div>
 
         <aside class="member-sidebar" aria-label="Membres et options">
@@ -151,6 +157,29 @@
               <input type="checkbox" data-compact-chat>
               <span>Compact</span>
             </label>
+            <label class="mini-check">
+              <input type="checkbox" data-sound-alert>
+              <span>Son notif</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-pause-chat>
+              <span>Pause live</span>
+            </label>
+          </div>
+
+          <div class="chat-panel feature-panel">
+            <span class="panel-label">Features</span>
+            <div class="feature-grid">
+              <button type="button" data-theme-cycle>Theme</button>
+              <button type="button" data-toggle-focus>Focus</button>
+              <button type="button" data-toggle-left>Salons</button>
+              <button type="button" data-toggle-right>Membres</button>
+              <button type="button" data-toggle-large-text>Texte +</button>
+              <button type="button" data-copy-room-code>Code</button>
+              <button type="button" data-refresh-chat>Refresh</button>
+              <button type="button" data-export-chat>Export</button>
+            </div>
+            <p data-feature-status>Pack 40 features actif : favoris, non-lus, brouillons, commandes et profils.</p>
           </div>
         </aside>
       </div>
@@ -188,10 +217,10 @@
     </section>
   </div>
 
-  <script src="supabase-config.js?v=20260619-discord1"></script>
-  <script src="supabase-client.js?v=20260619-discord1"></script>
-  <script src="auth.js?v=20260619-discord1"></script>
-  <script src="script.js?v=20260619-discord1"></script>
-  <script type="module" src="chat.js?v=20260619-discord1"></script>
+  <script src="supabase-config.js?v=20260619-megapack1"></script>
+  <script src="supabase-client.js?v=20260619-megapack1"></script>
+  <script src="auth.js?v=20260619-megapack1"></script>
+  <script src="script.js?v=20260619-megapack1"></script>
+  <script type="module" src="chat.js?v=20260619-megapack1"></script>
 </body>
 </html>

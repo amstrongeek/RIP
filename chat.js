@@ -3,6 +3,9 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,name_style,name_color_a,name_color_b,created_at,last_seen";
+const APP_VERSION = "20260619-megapack1";
+const STORAGE_PREFIX = "rip-chat";
+const THEMES = ["default", "blue", "pink", "gold"];
 
 const statusElement = document.querySelector("[data-chat-status]");
 const setupBox = document.querySelector("[data-chat-setup]");
@@ -20,6 +23,7 @@ const charCount = document.querySelector("[data-char-count]");
 const autoscrollInput = document.querySelector("[data-autoscroll]");
 const compactInput = document.querySelector("[data-compact-chat]");
 const clearViewButton = document.querySelector("[data-clear-chat-view]");
+const roomFilterInput = document.querySelector("[data-room-filter]");
 const roomList = document.querySelector("[data-room-list]");
 const createRoomForm = document.querySelector("[data-create-room-form]");
 const joinRoomForm = document.querySelector("[data-join-room-form]");
@@ -45,11 +49,24 @@ const modalCreated = document.querySelector("[data-modal-created]");
 const modalAddFriend = document.querySelector("[data-modal-add-friend]");
 const modalDm = document.querySelector("[data-modal-dm]");
 const modalCloseButtons = document.querySelectorAll("[data-profile-close]");
+const soundAlertInput = document.querySelector("[data-sound-alert]");
+const pauseChatInput = document.querySelector("[data-pause-chat]");
+const themeCycleButton = document.querySelector("[data-theme-cycle]");
+const focusButton = document.querySelector("[data-toggle-focus]");
+const leftToggleButton = document.querySelector("[data-toggle-left]");
+const rightToggleButton = document.querySelector("[data-toggle-right]");
+const largeTextButton = document.querySelector("[data-toggle-large-text]");
+const copyRoomCodeButton = document.querySelector("[data-copy-room-code]");
+const refreshChatButton = document.querySelector("[data-refresh-chat]");
+const exportChatButton = document.querySelector("[data-export-chat]");
+const scrollBottomButton = document.querySelector("[data-scroll-bottom]");
+const featureStatus = document.querySelector("[data-feature-status]");
 
 let client = null;
 let currentUser = null;
 let currentRoom = null;
 let chatChannel = null;
+let globalChannel = null;
 let allMessages = [];
 let rooms = [];
 let roomLabels = new Map();
@@ -59,11 +76,17 @@ let activeProfile = null;
 let typingUsers = new Map();
 let typingTimeout = null;
 let lastTypingSentAt = 0;
+let unreadByRoom = new Map();
+let favoriteRooms = new Set();
+let queuedMessages = [];
+let isPaused = false;
+let currentTheme = "default";
+let controlsBound = false;
 
 function loadFreshAuthScript() {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `auth.js?v=20260619-discord1-${Date.now()}`;
+    script.src = `auth.js?v=${APP_VERSION}-${Date.now()}`;
     script.onload = resolve;
     script.onerror = reject;
     document.head.append(script);
@@ -115,6 +138,109 @@ function setBoxMessage(container, text) {
   }
 
   container.textContent = text;
+}
+
+function storageKey(name) {
+  return `${STORAGE_PREFIX}:${name}`;
+}
+
+function readStorage(name, fallback = "") {
+  try {
+    return window.localStorage.getItem(storageKey(name)) || fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeStorage(name, value) {
+  try {
+    window.localStorage.setItem(storageKey(name), value);
+  } catch (error) {
+    console.warn("Storage indisponible:", error);
+  }
+}
+
+function readStorageJson(name, fallback) {
+  try {
+    const raw = window.localStorage.getItem(storageKey(name));
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeStorageJson(name, value) {
+  try {
+    window.localStorage.setItem(storageKey(name), JSON.stringify(value));
+  } catch (error) {
+    console.warn("Storage JSON indisponible:", error);
+  }
+}
+
+function setFeatureStatus(text) {
+  if (featureStatus) {
+    featureStatus.textContent = text;
+  }
+}
+
+function playNotifySound() {
+  if (!soundAlertInput || !soundAlertInput.checked || !window.AudioContext) {
+    return;
+  }
+
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = "square";
+  oscillator.frequency.value = 740;
+  gain.gain.value = 0.035;
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.07);
+}
+
+function savePreferences() {
+  writeStorage("theme", currentTheme);
+  writeStorage("sound", soundAlertInput && soundAlertInput.checked ? "1" : "0");
+  writeStorage("paused", pauseChatInput && pauseChatInput.checked ? "1" : "0");
+  writeStorage("compact", compactInput && compactInput.checked ? "1" : "0");
+  writeStorage("largeText", document.body.classList.contains("large-chat-text") ? "1" : "0");
+  writeStorage("hideLeft", document.body.classList.contains("hide-left-sidebar") ? "1" : "0");
+  writeStorage("hideRight", document.body.classList.contains("hide-right-sidebar") ? "1" : "0");
+}
+
+function applyTheme(theme) {
+  currentTheme = THEMES.includes(theme) ? theme : "default";
+  if (currentTheme === "default") {
+    document.body.removeAttribute("data-theme");
+  } else {
+    document.body.dataset.theme = currentTheme;
+  }
+}
+
+function loadPreferences() {
+  applyTheme(readStorage("theme", "default"));
+  favoriteRooms = new Set(readStorageJson("favorites", []));
+
+  if (soundAlertInput) {
+    soundAlertInput.checked = readStorage("sound") === "1";
+  }
+
+  if (pauseChatInput) {
+    pauseChatInput.checked = readStorage("paused") === "1";
+    isPaused = pauseChatInput.checked;
+  }
+
+  if (compactInput) {
+    compactInput.checked = readStorage("compact") === "1";
+    document.body.classList.toggle("chat-compact", compactInput.checked);
+  }
+
+  document.body.classList.toggle("large-chat-text", readStorage("largeText") === "1");
+  document.body.classList.toggle("hide-left-sidebar", readStorage("hideLeft") === "1");
+  document.body.classList.toggle("hide-right-sidebar", readStorage("hideRight") === "1");
 }
 
 function formatTime(value) {
@@ -214,6 +340,64 @@ function formatShortDate(value) {
   }).format(new Date(value));
 }
 
+function sameDay(a, b) {
+  const first = new Date(a);
+  const second = new Date(b);
+  return first.getFullYear() === second.getFullYear()
+    && first.getMonth() === second.getMonth()
+    && first.getDate() === second.getDate();
+}
+
+function appendLinkedText(container, text) {
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  let lastIndex = 0;
+  let match = urlPattern.exec(text);
+
+  while (match) {
+    if (match.index > lastIndex) {
+      container.append(document.createTextNode(text.slice(lastIndex, match.index)));
+    }
+
+    const link = document.createElement("a");
+    link.className = "message-link";
+    link.href = match[0];
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = match[0];
+    container.append(link);
+
+    lastIndex = match.index + match[0].length;
+    match = urlPattern.exec(text);
+  }
+
+  if (lastIndex < text.length) {
+    container.append(document.createTextNode(text.slice(lastIndex)));
+  }
+}
+
+function draftKey(roomId) {
+  return `draft:${roomId || "none"}`;
+}
+
+function saveDraft() {
+  if (currentRoom && input) {
+    writeStorage(draftKey(currentRoom.id), input.value);
+  }
+}
+
+function restoreDraft() {
+  if (currentRoom && input) {
+    input.value = readStorage(draftKey(currentRoom.id), "");
+    syncCharCount();
+  }
+}
+
+function clearDraft() {
+  if (currentRoom) {
+    writeStorage(draftKey(currentRoom.id), "");
+  }
+}
+
 function kindLabel(kind) {
   const labels = {
     public: "public",
@@ -251,7 +435,20 @@ async function loadProfiles(userIds) {
     .in("id", missing);
 
   if (error) {
-    throw error;
+    const fallback = await client
+      .from("profiles")
+      .select("id,pseudo,title,status,avatar_color,created_at,last_seen")
+      .in("id", missing);
+
+    if (fallback.error) {
+      throw fallback.error;
+    }
+
+    (fallback.data || []).forEach((profile) => {
+      profileCache.set(profile.id, profile);
+    });
+    setFeatureStatus("Profils charges en mode compatible. Relance le SQL pour les PP.");
+    return;
   }
 
   (data || []).forEach((profile) => {
@@ -391,15 +588,55 @@ function updateCounters(visibleMessages) {
   }
 }
 
+function updateTitle() {
+  const totalUnread = [...unreadByRoom.values()].reduce((sum, value) => sum + value, 0);
+  document.title = totalUnread ? `(${totalUnread}) RIP | Tchat` : "RIP | Tchat";
+}
+
+function incrementUnread(roomId) {
+  if (!roomId || currentRoom && currentRoom.id === roomId) {
+    return;
+  }
+
+  unreadByRoom.set(roomId, (unreadByRoom.get(roomId) || 0) + 1);
+  renderRooms();
+  updateTitle();
+  playNotifySound();
+}
+
+function removeMessage(messageId) {
+  allMessages = allMessages.filter((message) => String(message.id) !== String(messageId));
+  renderMessages();
+}
+
+function markRoomRead(roomId) {
+  if (!roomId) {
+    return;
+  }
+
+  unreadByRoom.delete(roomId);
+  renderRooms();
+  updateTitle();
+}
+
 function createMessageElement(message) {
   const item = document.createElement("li");
   item.className = "chat-message";
   item.dataset.messageId = String(message.id);
   const profile = profileCache.get(String(message.user_id));
   const pseudoText = profile ? profile.pseudo : message.pseudo;
+  const ownPseudo = currentUser ? currentUser.pseudo.toLowerCase() : "";
 
   if (currentUser && message.user_id === currentUser.id) {
     item.classList.add("is-own");
+  }
+
+  if (ownPseudo && message.content.toLowerCase().includes(`@${ownPseudo}`)) {
+    item.classList.add("is-mentioned");
+  }
+
+  if (message.content.startsWith("* ")) {
+    item.classList.add("is-action");
   }
 
   const avatar = document.createElement("button");
@@ -423,6 +660,13 @@ function createMessageElement(message) {
   const time = document.createElement("time");
   time.dateTime = message.created_at;
   time.textContent = formatTime(message.created_at);
+  time.title = new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "full",
+    timeStyle: "short"
+  }).format(new Date(message.created_at));
+
+  const actions = document.createElement("span");
+  actions.className = "message-actions";
 
   const copyButton = document.createElement("button");
   copyButton.className = "message-copy";
@@ -440,10 +684,36 @@ function createMessageElement(message) {
     }
   });
 
-  const content = document.createElement("p");
-  content.textContent = message.content;
+  actions.append(copyButton);
 
-  meta.append(pseudo, time, copyButton);
+  if (currentUser && message.user_id === currentUser.id) {
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "message-copy";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Suppr";
+    deleteButton.addEventListener("click", async () => {
+      const { error } = await client
+        .from("chat_messages")
+        .delete()
+        .eq("id", message.id)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        console.error("Erreur suppression:", error);
+        setStatus("Suppression impossible", "error");
+        return;
+      }
+
+      removeMessage(message.id);
+      setFeatureStatus("Message supprime.");
+    });
+    actions.append(deleteButton);
+  }
+
+  const content = document.createElement("p");
+  appendLinkedText(content, message.content);
+
+  meta.append(pseudo, time, actions);
   body.append(meta, content);
   item.append(avatar, body);
 
@@ -463,7 +733,16 @@ function renderMessages() {
     return;
   }
 
-  visibleMessages.forEach((message) => {
+  visibleMessages.forEach((message, index) => {
+    const previous = visibleMessages[index - 1];
+
+    if (!previous || !sameDay(previous.created_at, message.created_at)) {
+      const separator = document.createElement("li");
+      separator.className = "day-separator";
+      separator.textContent = formatShortDate(message.created_at);
+      messagesElement.append(separator);
+    }
+
     messagesElement.append(createMessageElement(message));
   });
 
@@ -483,12 +762,29 @@ async function upsertMessage(message) {
     return;
   }
 
+  if (isPaused && (!currentUser || message.user_id !== currentUser.id)) {
+    queuedMessages.push(message);
+    setFeatureStatus(`${queuedMessages.length} message(s) en attente. Decoche Pause live.`);
+    return;
+  }
+
   allMessages = [...allMessages, message].sort((a, b) => {
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
   await loadProfiles([message.user_id]);
   renderMessages();
+}
+
+async function flushQueuedMessages() {
+  const queued = queuedMessages;
+  queuedMessages = [];
+
+  for (const message of queued) {
+    await upsertMessage(message);
+  }
+
+  setFeatureStatus(queued.length ? `${queued.length} message(s) ajoutes.` : "Pause live desactivee.");
 }
 
 function renderRooms() {
@@ -507,13 +803,51 @@ function renderRooms() {
     return;
   }
 
-  rooms.forEach((room) => {
+  const filter = escapeSearch(roomFilterInput && roomFilterInput.value);
+  const visibleRooms = rooms
+    .filter((room) => !filter || `${roomDisplayName(room)} ${kindLabel(room.kind)}`.toLowerCase().includes(filter))
+    .sort((a, b) => {
+      const favoriteDelta = Number(favoriteRooms.has(b.id)) - Number(favoriteRooms.has(a.id));
+
+      if (favoriteDelta) {
+        return favoriteDelta;
+      }
+
+      return String(roomDisplayName(a)).localeCompare(String(roomDisplayName(b)));
+    });
+
+  if (!visibleRooms.length) {
+    const empty = document.createElement("button");
+    empty.type = "button";
+    empty.disabled = true;
+    empty.textContent = "Aucun resultat";
+    roomList.append(empty);
+    return;
+  }
+
+  visibleRooms.forEach((room) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "room-button";
     button.dataset.active = currentRoom && room.id === currentRoom.id ? "true" : "false";
+    button.dataset.favorite = favoriteRooms.has(room.id) ? "true" : "false";
+    button.dataset.unread = String(unreadByRoom.get(room.id) || 0);
     button.append(createStackedLabel(roomDisplayName(room), kindLabel(room.kind)));
     button.addEventListener("click", () => selectRoom(room.id));
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+
+      if (favoriteRooms.has(room.id)) {
+        favoriteRooms.delete(room.id);
+        setFeatureStatus("Salon retire des favoris.");
+      } else {
+        favoriteRooms.add(room.id);
+        setFeatureStatus("Salon ajoute aux favoris.");
+      }
+
+      writeStorageJson("favorites", [...favoriteRooms]);
+      renderRooms();
+    });
     roomList.append(button);
   });
 }
@@ -559,7 +893,9 @@ async function loadRooms() {
 
   await loadRoomLabels();
 
+  const lastRoomId = readStorage("lastRoom");
   currentRoom = rooms.find((room) => currentRoom && room.id === currentRoom.id)
+    || rooms.find((room) => room.id === lastRoomId)
     || rooms.find((room) => room.id === DEFAULT_ROOM_ID)
     || rooms[0];
 
@@ -662,6 +998,16 @@ async function switchRealtimeChannel() {
         });
       }
     )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "chat_messages",
+        filter: `room_id=eq.${currentRoom.id}`
+      },
+      (payload) => removeMessage(payload.old.id)
+    )
     .on("presence", { event: "sync" }, renderOnlineUsers)
     .on("presence", { event: "join" }, renderOnlineUsers)
     .on("presence", { event: "leave" }, renderOnlineUsers)
@@ -694,6 +1040,29 @@ async function switchRealtimeChannel() {
     });
 }
 
+function switchGlobalChannel() {
+  if (globalChannel) {
+    return;
+  }
+
+  globalChannel = client
+    .channel("rip-all-rooms")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_messages"
+      },
+      (payload) => {
+        if (!currentRoom || payload.new.room_id !== currentRoom.id) {
+          incrementUnread(payload.new.room_id);
+        }
+      }
+    )
+    .subscribe();
+}
+
 async function selectRoom(roomId) {
   const room = rooms.find((candidate) => candidate.id === roomId);
 
@@ -701,7 +1070,10 @@ async function selectRoom(roomId) {
     return;
   }
 
+  saveDraft();
   currentRoom = room;
+  writeStorage("lastRoom", room.id);
+  markRoomRead(room.id);
   setStatus("Chargement du salon...", "");
   setChatEnabled(false);
   renderRooms();
@@ -710,6 +1082,7 @@ async function selectRoom(roomId) {
   try {
     await loadMessages();
     await switchRealtimeChannel();
+    restoreDraft();
     setChatEnabled(true);
     setStatus(`Salon : ${roomDisplayName(currentRoom)}`, "success");
   } catch (error) {
@@ -1067,6 +1440,12 @@ async function joinRoom(code) {
 }
 
 function bindLocalControls() {
+  if (controlsBound) {
+    return;
+  }
+
+  controlsBound = true;
+
   modalCloseButtons.forEach((button) => {
     button.addEventListener("click", closeProfileModal);
   });
@@ -1074,6 +1453,21 @@ function bindLocalControls() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeProfileModal();
+
+      if (searchInput && searchInput.value) {
+        searchInput.value = "";
+        renderMessages();
+      }
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && form) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k" && searchInput) {
+      event.preventDefault();
+      searchInput.focus();
     }
   });
 
@@ -1106,9 +1500,34 @@ function bindLocalControls() {
     searchInput.addEventListener("input", renderMessages);
   }
 
+  if (roomFilterInput) {
+    roomFilterInput.addEventListener("input", renderRooms);
+  }
+
   if (compactInput) {
     compactInput.addEventListener("change", () => {
       document.body.classList.toggle("chat-compact", compactInput.checked);
+      savePreferences();
+    });
+  }
+
+  if (soundAlertInput) {
+    soundAlertInput.addEventListener("change", () => {
+      savePreferences();
+      setFeatureStatus(soundAlertInput.checked ? "Son active." : "Son desactive.");
+    });
+  }
+
+  if (pauseChatInput) {
+    pauseChatInput.addEventListener("change", async () => {
+      isPaused = pauseChatInput.checked;
+      savePreferences();
+
+      if (!isPaused) {
+        await flushQueuedMessages();
+      } else {
+        setFeatureStatus("Pause live activee.");
+      }
     });
   }
 
@@ -1119,6 +1538,102 @@ function bindLocalControls() {
       }
 
       renderMessages();
+    });
+  }
+
+  if (themeCycleButton) {
+    themeCycleButton.addEventListener("click", () => {
+      const nextTheme = THEMES[(THEMES.indexOf(currentTheme) + 1) % THEMES.length];
+      applyTheme(nextTheme);
+      savePreferences();
+      setFeatureStatus(`Theme : ${nextTheme}.`);
+    });
+  }
+
+  if (focusButton) {
+    focusButton.addEventListener("click", () => {
+      document.body.classList.toggle("is-focus-mode");
+      setFeatureStatus(document.body.classList.contains("is-focus-mode") ? "Mode focus active." : "Mode focus coupe.");
+    });
+  }
+
+  if (leftToggleButton) {
+    leftToggleButton.addEventListener("click", () => {
+      document.body.classList.toggle("hide-left-sidebar");
+      savePreferences();
+      setFeatureStatus("Colonne salons basculee.");
+    });
+  }
+
+  if (rightToggleButton) {
+    rightToggleButton.addEventListener("click", () => {
+      document.body.classList.toggle("hide-right-sidebar");
+      savePreferences();
+      setFeatureStatus("Colonne membres basculee.");
+    });
+  }
+
+  if (largeTextButton) {
+    largeTextButton.addEventListener("click", () => {
+      document.body.classList.toggle("large-chat-text");
+      savePreferences();
+      setFeatureStatus("Taille du texte changee.");
+    });
+  }
+
+  if (copyRoomCodeButton) {
+    copyRoomCodeButton.addEventListener("click", async () => {
+      if (!currentRoom) {
+        return;
+      }
+
+      await navigator.clipboard.writeText(currentRoom.invite_code || "general");
+      setFeatureStatus("Code salon copie.");
+    });
+  }
+
+  if (refreshChatButton) {
+    refreshChatButton.addEventListener("click", async () => {
+      if (!currentRoom) {
+        return;
+      }
+
+      await loadMessages();
+      setFeatureStatus("Messages recharges.");
+    });
+  }
+
+  if (exportChatButton) {
+    exportChatButton.addEventListener("click", () => {
+      const lines = filteredMessages().map((message) => {
+        return `[${formatTime(message.created_at)}] ${message.pseudo}: ${message.content}`;
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rip-${roomDisplayName(currentRoom).replace(/[^a-z0-9_-]+/gi, "-")}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setFeatureStatus("Export cree.");
+    });
+  }
+
+  if (scrollBottomButton) {
+    scrollBottomButton.addEventListener("click", () => {
+      messagesElement.scrollTop = messagesElement.scrollHeight;
+      scrollBottomButton.hidden = true;
+    });
+  }
+
+  if (messagesElement) {
+    messagesElement.addEventListener("scroll", () => {
+      if (!scrollBottomButton) {
+        return;
+      }
+
+      const distance = messagesElement.scrollHeight - messagesElement.clientHeight - messagesElement.scrollTop;
+      scrollBottomButton.hidden = distance < 140;
     });
   }
 
@@ -1182,6 +1697,7 @@ function bindLocalControls() {
 
   if (input) {
     input.addEventListener("input", () => {
+      saveDraft();
       syncCharCount();
       sendTypingSignal();
     });
@@ -1220,6 +1736,55 @@ function sendTypingSignal() {
 function startTypingCleaner() {
   window.clearInterval(typingTimeout);
   typingTimeout = window.setInterval(renderTypingLine, 900);
+}
+
+async function handleCommand(rawContent) {
+  const content = rawContent.trim();
+
+  if (!content.startsWith("/")) {
+    return content;
+  }
+
+  const [command, ...args] = content.slice(1).split(/\s+/);
+  const rest = args.join(" ").trim();
+
+  switch ((command || "").toLowerCase()) {
+    case "help":
+      setFeatureStatus("Commandes : /me /clear /shrug /tableflip /roll /coin /general /rooms /theme");
+      return null;
+    case "clear":
+      allMessages = [];
+      renderMessages();
+      setFeatureStatus("Vue locale nettoyee.");
+      return null;
+    case "shrug":
+      return `${rest || ""} ¯\\_(ツ)_/¯`.trim();
+    case "tableflip":
+      return `${rest || ""} (╯°□°）╯︵ ┻━┻`.trim();
+    case "roll":
+      return `🎲 ${currentUser.pseudo} lance un de : ${Math.ceil(Math.random() * 6)}`;
+    case "coin":
+      return `🪙 ${Math.random() > 0.5 ? "Pile" : "Face"}`;
+    case "me":
+      return `* ${currentUser.pseudo} ${rest || "fait une action"}`;
+    case "general":
+      await selectRoom(DEFAULT_ROOM_ID);
+      return null;
+    case "rooms":
+      renderRooms();
+      setFeatureStatus(`${rooms.length} salon(s) charges.`);
+      return null;
+    case "theme": {
+      const nextTheme = rest && THEMES.includes(rest) ? rest : THEMES[(THEMES.indexOf(currentTheme) + 1) % THEMES.length];
+      applyTheme(nextTheme);
+      savePreferences();
+      setFeatureStatus(`Theme : ${nextTheme}.`);
+      return null;
+    }
+    default:
+      setFeatureStatus(`Commande inconnue : /${command}`);
+      return null;
+  }
 }
 
 async function startChat() {
@@ -1270,6 +1835,8 @@ async function startChat() {
   syncSelfPanel();
 
   client = await window.RipSupabase.getClient();
+  loadPreferences();
+  switchGlobalChannel();
   setStatus("Connexion au salon...", "");
   setChatEnabled(false);
 
@@ -1293,9 +1860,18 @@ if (form) {
       return;
     }
 
-    const content = input.value.trim();
+    let content = input.value.trim();
 
     if (!content) {
+      return;
+    }
+
+    content = await handleCommand(content);
+
+    if (!content) {
+      input.value = "";
+      clearDraft();
+      syncCharCount();
       return;
     }
 
@@ -1306,12 +1882,16 @@ if (form) {
 
     setChatEnabled(false);
 
-    const { error } = await client.from("chat_messages").insert({
-      room_id: currentRoom.id,
-      user_id: currentUser.id,
-      pseudo: currentUser.pseudo,
-      content
-    });
+    const { data, error } = await client
+      .from("chat_messages")
+      .insert({
+        room_id: currentRoom.id,
+        user_id: currentUser.id,
+        pseudo: currentUser.pseudo,
+        content
+      })
+      .select("id,room_id,user_id,pseudo,content,created_at")
+      .single();
 
     if (error) {
       console.error("Erreur envoi:", error);
@@ -1321,7 +1901,13 @@ if (form) {
     }
 
     input.value = "";
+    clearDraft();
     syncCharCount();
+    if (data) {
+      await upsertMessage(data);
+    } else {
+      await loadMessages();
+    }
     setStatus(`Salon : ${roomDisplayName(currentRoom)}`, "success");
     setChatEnabled(true);
     input.focus();

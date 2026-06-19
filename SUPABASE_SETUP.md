@@ -93,6 +93,9 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - photos de profil via Supabase Storage
 - pseudos en couleur simple, degrade deux couleurs ou arc-en-ciel
 - carte profil publique au clic sur un joueur
+- suppression de ses propres messages
+- favoris de salons, non-lus, brouillons par salon et dernier salon memorise
+- pack 40 features : themes, focus mode, colonnes masquables, export texte, refresh, pause live, sons, favoris, non-lus, brouillons, slash commands et raccourcis
 
 ## Probleme frequent
 

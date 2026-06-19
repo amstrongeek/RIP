@@ -28,6 +28,14 @@
   font-family: var(--pixel-font);
 }
 
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -43,6 +51,55 @@ body {
   background-size: 24px 24px;
   color: var(--text);
   line-height: 1.8;
+}
+
+body[data-theme="blue"] {
+  --accent: #7dd3fc;
+  --accent-dark: #38bdf8;
+  --accent-2: #c084fc;
+}
+
+body[data-theme="pink"] {
+  --accent: #ff5b7f;
+  --accent-dark: #f43f5e;
+  --accent-2: #ffdc5e;
+}
+
+body[data-theme="gold"] {
+  --accent: #ffdc5e;
+  --accent-dark: #f59e0b;
+  --accent-2: #39ff88;
+}
+
+body.is-focus-mode .chat-sidebar,
+body.is-focus-mode .member-sidebar {
+  display: none;
+}
+
+body.is-focus-mode .discord-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.hide-left-sidebar .chat-sidebar,
+body.hide-right-sidebar .member-sidebar {
+  display: none;
+}
+
+body.hide-left-sidebar .discord-layout {
+  grid-template-columns: minmax(0, 1fr) 250px;
+}
+
+body.hide-right-sidebar .discord-layout {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+body.hide-left-sidebar.hide-right-sidebar .discord-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.large-chat-text .chat-message p,
+body.large-chat-text .chat-form textarea {
+  font-size: 0.82rem;
 }
 
 .app-body {
@@ -558,10 +615,13 @@ h3 {
 .message-avatar {
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
   border: 4px solid var(--black);
+  border-radius: 0;
   background: var(--avatar-color, var(--accent));
   color: var(--black);
   box-shadow: 5px 5px 0 var(--black);
+  line-height: 1;
   text-transform: uppercase;
 }
 
@@ -571,6 +631,9 @@ h3 {
 .social-avatar img {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: cover;
   image-rendering: pixelated;
 }
@@ -805,6 +868,19 @@ h3 {
   gap: 8px;
 }
 
+.panel-search {
+  width: 100%;
+  min-height: 36px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 2px solid var(--black);
+  background: var(--text);
+  color: var(--black);
+  box-shadow: inset 3px 3px 0 rgba(0, 0, 0, 0.18);
+  font: inherit;
+  font-size: 0.5rem;
+}
+
 .room-list {
   margin-bottom: 16px;
 }
@@ -812,6 +888,7 @@ h3 {
 .room-button,
 .mini-form button,
 .social-item button,
+.feature-grid button,
 .room-list button:disabled {
   min-height: 34px;
   padding: 7px 8px;
@@ -831,8 +908,32 @@ h3 {
 }
 
 .room-button {
+  position: relative;
   width: 100%;
   text-align: left;
+}
+
+.room-button strong::before {
+  content: "# ";
+  color: currentColor;
+}
+
+.room-button[data-favorite="true"] strong::before {
+  content: "* ";
+}
+
+.room-button[data-unread]:not([data-unread="0"])::after {
+  content: attr(data-unread);
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 18px;
+  padding: 2px 4px;
+  border: 2px solid var(--black);
+  background: var(--danger);
+  color: var(--text);
+  text-align: center;
+  font-size: 0.42rem;
 }
 
 .room-button[data-active="true"] {
@@ -883,9 +984,20 @@ h3 {
 }
 
 .mini-form button,
-.social-item button {
+.social-item button,
+.feature-grid button {
   color: var(--black);
   background: var(--accent-2);
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.feature-panel p {
+  margin: 12px 0 0;
 }
 
 .social-list {
@@ -990,6 +1102,7 @@ h3 {
 }
 
 .chat-main {
+  position: relative;
   min-width: 0;
 }
 
@@ -1032,6 +1145,31 @@ h3 {
   gap: 14px;
   padding: 14px;
   box-shadow: 4px 4px 0 var(--black);
+}
+
+.chat-message.is-mentioned {
+  outline: 3px solid var(--accent-2);
+  outline-offset: -3px;
+}
+
+.chat-message.is-action {
+  background: rgba(255, 220, 94, 0.12);
+}
+
+.day-separator {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--accent-2);
+  font-size: 0.52rem;
+  text-align: center;
+}
+
+.message-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
 }
 
 .chat-message.is-own {
@@ -1078,6 +1216,13 @@ h3 {
   cursor: pointer;
   font: inherit;
   font-size: 0.5rem;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .chat-message p,
@@ -1178,6 +1323,21 @@ body.chat-compact .message-avatar {
 
 body.chat-compact .chat-message p {
   font-size: 0.62rem;
+}
+
+.scroll-bottom {
+  position: absolute;
+  right: 14px;
+  bottom: 150px;
+  z-index: 3;
+  padding: 8px 10px;
+  border: 2px solid var(--black);
+  background: var(--accent);
+  color: var(--black);
+  box-shadow: 3px 3px 0 var(--black);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.52rem;
 }
 
 .color-pair {

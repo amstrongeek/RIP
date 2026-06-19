@@ -74,6 +74,7 @@ create table if not exists public.chat_messages (
 );
 
 alter table public.chat_messages add column if not exists room_id uuid references public.chat_rooms(id) on delete cascade;
+alter table public.chat_messages replica identity full;
 
 create table if not exists public.friend_requests (
   id uuid primary key default gen_random_uuid(),
@@ -297,6 +298,7 @@ drop policy if exists "Les utilisateurs connectes lisent le tchat" on public.cha
 drop policy if exists "Les utilisateurs connectes envoient un message" on public.chat_messages;
 drop policy if exists "Les membres lisent les messages du salon" on public.chat_messages;
 drop policy if exists "Les membres envoient dans le salon" on public.chat_messages;
+drop policy if exists "Les utilisateurs suppriment leurs messages" on public.chat_messages;
 
 create policy "Les membres lisent les messages du salon"
 on public.chat_messages
@@ -314,6 +316,12 @@ with check (
   and char_length(content) between 1 and 500
   and public.current_user_can_read_room(room_id)
 );
+
+create policy "Les utilisateurs suppriment leurs messages"
+on public.chat_messages
+for delete
+to authenticated
+using (user_id = auth.uid()::text);
 
 drop policy if exists "Les demandes visibles sont lisibles" on public.friend_requests;
 drop policy if exists "Les utilisateurs envoient des demandes" on public.friend_requests;
@@ -476,7 +484,7 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update on public.chat_rooms to authenticated;
 grant select, insert on public.room_members to authenticated;
-grant select, insert on public.chat_messages to authenticated;
+grant select, insert, delete on public.chat_messages to authenticated;
 grant select, insert, update on public.friend_requests to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 grant execute on function public.room_is_public(uuid) to authenticated;
