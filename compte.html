@@ -9,16 +9,13 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="logo" href="index.html#accueil">RIP</a>
+    <a class="logo" href="index.html">RIP</a>
 
     <nav class="nav" aria-label="Navigation principale">
-      <a href="index.html#accueil">Accueil</a>
-      <a href="index.html#services">Services</a>
-      <a href="index.html#projets">Projets</a>
-      <a href="chat.html">Tchat</a>
+      <a href="index.html">Tchat</a>
       <a href="connexion.html" data-auth-visible="guest">Connexion</a>
       <a href="inscription.html" data-auth-visible="guest">Inscription</a>
-      <a href="compte.html" data-auth-visible="user">Compte</a>
+      <a href="compte.html" data-auth-visible="user">Mon profil</a>
     </nav>
   </header>
 
@@ -102,6 +99,32 @@
             </div>
 
             <div class="field">
+              <label for="profile-avatar-file">Photo de profil</label>
+              <input id="profile-avatar-file" name="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+              <small>PNG, JPG, WEBP ou GIF. Maximum 2 Mo.</small>
+            </div>
+
+            <div class="field">
+              <label for="profile-name-style">Style du pseudo</label>
+              <select id="profile-name-style" name="nameStyle">
+                <option value="solid">Couleur simple</option>
+                <option value="gradient">Degrade 2 couleurs</option>
+                <option value="rainbow">Arc-en-ciel</option>
+              </select>
+            </div>
+
+            <div class="field color-pair">
+              <div>
+                <label for="profile-name-color-a">Couleur pseudo 1</label>
+                <input id="profile-name-color-a" name="nameColorA" type="color" value="#39ff88">
+              </div>
+              <div>
+                <label for="profile-name-color-b">Couleur pseudo 2</label>
+                <input id="profile-name-color-b" name="nameColorB" type="color" value="#ffdc5e">
+              </div>
+            </div>
+
+            <div class="field">
               <label for="profile-website">Lien</label>
               <input id="profile-website" name="website" type="url" placeholder="https://exemple.com">
               <small>Optionnel. Le lien doit commencer par https://</small>
@@ -120,7 +143,7 @@
       </div>
 
       <div class="profile-actions">
-        <a class="button secondary" href="chat.html">Aller au tchat</a>
+        <a class="button secondary" href="index.html">Aller au tchat</a>
         <button class="button secondary" type="button" data-logout>Deconnexion</button>
       </div>
     </section>
@@ -131,9 +154,9 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260619-social2"></script>
-  <script src="supabase-client.js?v=20260619-social2"></script>
-  <script src="auth.js?v=20260619-social2"></script>
-  <script src="script.js?v=20260619-social2"></script>
+  <script src="supabase-config.js?v=20260619-discord1"></script>
+  <script src="supabase-client.js?v=20260619-discord1"></script>
+  <script src="auth.js?v=20260619-discord1"></script>
+  <script src="script.js?v=20260619-discord1"></script>
 </body>
 </html>

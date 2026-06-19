@@ -2,6 +2,7 @@ const DEFAULT_ROOM_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
+const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,name_style,name_color_a,name_color_b,created_at,last_seen";
 
 const statusElement = document.querySelector("[data-chat-status]");
 const setupBox = document.querySelector("[data-chat-setup]");
@@ -29,6 +30,21 @@ const friendList = document.querySelector("[data-friend-list]");
 const currentRoomName = document.querySelector("[data-current-room-name]");
 const currentRoomKind = document.querySelector("[data-current-room-kind]");
 const currentRoomCode = document.querySelector("[data-current-room-code]");
+const selfAvatar = document.querySelector("[data-self-avatar]");
+const selfName = document.querySelector("[data-self-name]");
+const selfStatus = document.querySelector("[data-self-status]");
+const selfProfileButton = document.querySelector("[data-open-self-profile]");
+const profileModal = document.querySelector("[data-profile-modal]");
+const modalAvatar = document.querySelector("[data-modal-avatar]");
+const modalName = document.querySelector("[data-modal-name]");
+const modalTitle = document.querySelector("[data-modal-title]");
+const modalBio = document.querySelector("[data-modal-bio]");
+const modalWebsite = document.querySelector("[data-modal-website]");
+const modalStatus = document.querySelector("[data-modal-status]");
+const modalCreated = document.querySelector("[data-modal-created]");
+const modalAddFriend = document.querySelector("[data-modal-add-friend]");
+const modalDm = document.querySelector("[data-modal-dm]");
+const modalCloseButtons = document.querySelectorAll("[data-profile-close]");
 
 let client = null;
 let currentUser = null;
@@ -38,6 +54,8 @@ let allMessages = [];
 let rooms = [];
 let roomLabels = new Map();
 let friendProfiles = [];
+let profileCache = new Map();
+let activeProfile = null;
 let typingUsers = new Map();
 let typingTimeout = null;
 let lastTypingSentAt = 0;
@@ -45,7 +63,7 @@ let lastTypingSentAt = 0;
 function loadFreshAuthScript() {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `auth.js?v=20260619-social2-${Date.now()}`;
+    script.src = `auth.js?v=20260619-discord1-${Date.now()}`;
     script.onload = resolve;
     script.onerror = reject;
     document.head.append(script);
@@ -141,6 +159,61 @@ function createStackedLabel(primaryText, secondaryText) {
   return label;
 }
 
+function profileValue(profile, snakeName, camelName, fallback = "") {
+  if (!profile) {
+    return fallback;
+  }
+
+  return profile[snakeName] || profile[camelName] || fallback;
+}
+
+function applyNameStyle(element, profile, fallbackPseudo = "Player") {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = profileValue(profile, "pseudo", "pseudo", fallbackPseudo);
+  element.classList.add("display-name");
+  element.dataset.nameStyle = profileValue(profile, "name_style", "nameStyle", "solid");
+  element.style.setProperty("--name-color-a", profileValue(profile, "name_color_a", "nameColorA", "#39ff88"));
+  element.style.setProperty("--name-color-b", profileValue(profile, "name_color_b", "nameColorB", "#ffdc5e"));
+}
+
+function applyAvatar(element, profile, fallbackPseudo = "?") {
+  if (!element) {
+    return;
+  }
+
+  const pseudo = profileValue(profile, "pseudo", "pseudo", fallbackPseudo);
+  const avatarUrl = profileValue(profile, "avatar_url", "avatarUrl", "");
+
+  element.replaceChildren();
+  element.style.setProperty("--avatar-color", profileValue(profile, "avatar_color", "avatarColor", colorFromString(pseudo)));
+
+  if (avatarUrl) {
+    const image = document.createElement("img");
+    image.src = avatarUrl;
+    image.alt = `Avatar de ${pseudo}`;
+    image.loading = "lazy";
+    element.append(image);
+    return;
+  }
+
+  element.textContent = avatarLetter(pseudo);
+}
+
+function formatShortDate(value) {
+  if (!value) {
+    return "--";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
 function kindLabel(kind) {
   const labels = {
     public: "public",
@@ -161,7 +234,139 @@ function roomDisplayName(room) {
 
 function schemaHelp(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /room_id|chat_rooms|room_members|friend_requests|invite_code|column|schema|relationship/i.test(message);
+  return /room_id|chat_rooms|room_members|friend_requests|invite_code|avatar_url|name_style|name_color|storage|bucket|column|schema|relationship/i.test(message);
+}
+
+async function loadProfiles(userIds) {
+  const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
+  const missing = ids.filter((id) => !profileCache.has(id));
+
+  if (!missing.length) {
+    return;
+  }
+
+  const { data, error } = await client
+    .from("profiles")
+    .select(PROFILE_SELECT)
+    .in("id", missing);
+
+  if (error) {
+    throw error;
+  }
+
+  (data || []).forEach((profile) => {
+    profileCache.set(profile.id, profile);
+  });
+}
+
+async function getProfile(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  await loadProfiles([userId]);
+  return profileCache.get(String(userId)) || null;
+}
+
+function syncSelfPanel() {
+  if (!currentUser) {
+    return;
+  }
+
+  applyAvatar(selfAvatar, currentUser, currentUser.pseudo);
+  applyNameStyle(selfName, currentUser, currentUser.pseudo);
+
+  if (selfStatus) {
+    selfStatus.textContent = currentUser.status || currentUser.title || "En ligne";
+  }
+}
+
+function closeProfileModal() {
+  if (!profileModal) {
+    return;
+  }
+
+  activeProfile = null;
+  profileModal.hidden = true;
+  profileModal.setAttribute("aria-hidden", "true");
+}
+
+function renderProfileModal(profile) {
+  if (!profileModal || !profile) {
+    return;
+  }
+
+  activeProfile = profile;
+  applyAvatar(modalAvatar, profile, profile.pseudo);
+  applyNameStyle(modalName, profile, profile.pseudo);
+
+  if (modalTitle) {
+    modalTitle.textContent = profile.title || "Nouveau joueur";
+  }
+
+  if (modalBio) {
+    modalBio.textContent = profile.bio || "Aucune bio.";
+  }
+
+  if (modalWebsite) {
+    if (profile.website) {
+      modalWebsite.hidden = false;
+      modalWebsite.href = profile.website;
+      modalWebsite.textContent = profile.website.replace(/^https:\/\//, "");
+    } else {
+      modalWebsite.hidden = true;
+      modalWebsite.removeAttribute("href");
+    }
+  }
+
+  if (modalStatus) {
+    modalStatus.textContent = profile.status || "En ligne";
+  }
+
+  if (modalCreated) {
+    modalCreated.textContent = formatShortDate(profile.created_at);
+  }
+
+  const isSelf = currentUser && profile.id === currentUser.id;
+
+  if (modalAddFriend) {
+    modalAddFriend.hidden = isSelf;
+  }
+
+  if (modalDm) {
+    modalDm.hidden = isSelf;
+  }
+
+  profileModal.hidden = false;
+  profileModal.setAttribute("aria-hidden", "false");
+}
+
+async function openProfile(userId) {
+  try {
+    const profile = currentUser && userId === currentUser.id
+      ? {
+          id: currentUser.id,
+          pseudo: currentUser.pseudo,
+          title: currentUser.title,
+          status: currentUser.status,
+          bio: currentUser.bio,
+          website: currentUser.website,
+          avatar_color: currentUser.avatarColor,
+          avatar_url: currentUser.avatarUrl,
+          name_style: currentUser.nameStyle,
+          name_color_a: currentUser.nameColorA,
+          name_color_b: currentUser.nameColorB,
+          created_at: currentUser.createdAt
+        }
+      : await getProfile(userId);
+
+    if (profile) {
+      renderProfileModal(profile);
+    }
+  } catch (error) {
+    console.error("Erreur profil public:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Profil inaccessible", "error");
+  }
 }
 
 function filteredMessages() {
@@ -190,17 +395,18 @@ function createMessageElement(message) {
   const item = document.createElement("li");
   item.className = "chat-message";
   item.dataset.messageId = String(message.id);
+  const profile = profileCache.get(String(message.user_id));
+  const pseudoText = profile ? profile.pseudo : message.pseudo;
 
   if (currentUser && message.user_id === currentUser.id) {
     item.classList.add("is-own");
   }
 
-  const avatar = document.createElement("div");
+  const avatar = document.createElement("button");
+  avatar.type = "button";
   avatar.className = "message-avatar";
-  avatar.textContent = avatarLetter(message.pseudo);
-  avatar.style.setProperty("--avatar-color", message.user_id === (currentUser && currentUser.id)
-    ? currentUser.avatarColor || "#39ff88"
-    : colorFromString(message.pseudo));
+  avatar.addEventListener("click", () => openProfile(message.user_id));
+  applyAvatar(avatar, profile, pseudoText);
 
   const body = document.createElement("div");
   body.className = "message-body";
@@ -208,8 +414,11 @@ function createMessageElement(message) {
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
 
-  const pseudo = document.createElement("strong");
-  pseudo.textContent = message.pseudo;
+  const pseudo = document.createElement("button");
+  pseudo.type = "button";
+  pseudo.className = "name-button";
+  pseudo.addEventListener("click", () => openProfile(message.user_id));
+  applyNameStyle(pseudo, profile, pseudoText);
 
   const time = document.createElement("time");
   time.dateTime = message.created_at;
@@ -265,7 +474,7 @@ function renderMessages() {
   }
 }
 
-function upsertMessage(message) {
+async function upsertMessage(message) {
   if (!currentRoom || message.room_id !== currentRoom.id) {
     return;
   }
@@ -278,6 +487,7 @@ function upsertMessage(message) {
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
+  await loadProfiles([message.user_id]);
   renderMessages();
 }
 
@@ -417,6 +627,7 @@ async function loadMessages() {
   }
 
   allMessages = [...(data || [])].reverse();
+  await loadProfiles(allMessages.map((message) => message.user_id));
   renderMessages();
 }
 
@@ -445,7 +656,11 @@ async function switchRealtimeChannel() {
         table: "chat_messages",
         filter: `room_id=eq.${currentRoom.id}`
       },
-      (payload) => upsertMessage(payload.new)
+      (payload) => {
+        upsertMessage(payload.new).catch((error) => {
+          console.error("Erreur message temps reel:", error);
+        });
+      }
     )
     .on("presence", { event: "sync" }, renderOnlineUsers)
     .on("presence", { event: "join" }, renderOnlineUsers)
@@ -465,6 +680,10 @@ async function switchRealtimeChannel() {
         title: currentUser.title,
         status: currentUser.status,
         avatarColor: currentUser.avatarColor,
+        avatarUrl: currentUser.avatarUrl,
+        nameStyle: currentUser.nameStyle,
+        nameColorA: currentUser.nameColorA,
+        nameColorB: currentUser.nameColorB,
         roomId: currentRoom.id,
         onlineAt: new Date().toISOString()
       });
@@ -529,16 +748,23 @@ function renderOnlineUsers() {
 
   users.forEach((user) => {
     const item = document.createElement("li");
-    const dot = document.createElement("span");
-    const name = document.createElement("strong");
+    const avatar = document.createElement("button");
+    const name = document.createElement("button");
     const title = document.createElement("small");
 
-    dot.className = "online-dot";
-    dot.style.setProperty("--avatar-color", user.avatarColor || colorFromString(user.pseudo));
-    name.textContent = user.pseudo;
+    avatar.type = "button";
+    avatar.className = "online-avatar";
+    avatar.addEventListener("click", () => openProfile(user.userId));
+    applyAvatar(avatar, user, user.pseudo);
+
+    name.type = "button";
+    name.className = "name-button";
+    name.addEventListener("click", () => openProfile(user.userId));
+    applyNameStyle(name, user, user.pseudo);
+
     title.textContent = user.title || user.status || "En ligne";
 
-    item.append(dot, name, title);
+    item.append(avatar, name, title);
     onlineList.append(item);
   });
 }
@@ -592,7 +818,7 @@ async function loadFriends() {
   if (friendIds.length) {
     const { data: profiles } = await client
       .from("profiles")
-      .select("id,pseudo,title,status,avatar_color")
+      .select(PROFILE_SELECT)
       .in("id", friendIds);
 
     friendProfiles = profiles || [];
@@ -601,7 +827,7 @@ async function loadFriends() {
   if (incomingIds.length) {
     const { data: profiles } = await client
       .from("profiles")
-      .select("id,pseudo,title,status,avatar_color")
+      .select(PROFILE_SELECT)
       .in("id", incomingIds);
 
     incomingProfiles = new Map((profiles || []).map((profile) => [profile.id, profile]));
@@ -609,6 +835,35 @@ async function loadFriends() {
 
   renderFriendRequests(incoming, incomingProfiles);
   renderFriendList();
+}
+
+function createProfileRow(profile, secondaryText) {
+  profileCache.set(profile.id, profile);
+
+  const item = document.createElement("div");
+  item.className = "social-item profile-social-item";
+
+  const avatar = document.createElement("button");
+  avatar.type = "button";
+  avatar.className = "social-avatar";
+  avatar.addEventListener("click", () => openProfile(profile.id));
+  applyAvatar(avatar, profile, profile.pseudo);
+
+  const label = document.createElement("button");
+  label.type = "button";
+  label.className = "social-profile-label name-button";
+  label.addEventListener("click", () => openProfile(profile.id));
+
+  const name = document.createElement("strong");
+  applyNameStyle(name, profile, profile.pseudo);
+
+  const secondary = document.createElement("small");
+  secondary.textContent = secondaryText || profile.title || profile.status || "Joueur";
+
+  label.append(name, secondary);
+  item.append(avatar, label);
+
+  return item;
 }
 
 function renderFriendRequests(requests, profilesById = new Map()) {
@@ -625,12 +880,14 @@ function renderFriendRequests(requests, profilesById = new Map()) {
 
   requests.forEach((request) => {
     const profile = profilesById.get(request.sender_id);
-    const item = document.createElement("div");
-    item.className = "social-item";
-    item.append(createStackedLabel(
-      profile ? profile.pseudo : "Demande recue",
-      profile ? (profile.title || profile.status || "Veut t'ajouter") : "Veut t'ajouter"
-    ));
+    const item = profile
+      ? createProfileRow(profile, profile.title || profile.status || "Veut t'ajouter")
+      : document.createElement("div");
+
+    if (!profile) {
+      item.className = "social-item";
+      item.append(createStackedLabel("Demande recue", "Veut t'ajouter"));
+    }
 
     const accept = document.createElement("button");
     accept.type = "button";
@@ -660,17 +917,14 @@ function renderFriendList() {
   }
 
   friendProfiles.forEach((profile) => {
-    const item = document.createElement("div");
-    item.className = "social-item";
-
-    const label = createStackedLabel(profile.pseudo, profile.title || profile.status || "Ami");
+    const item = createProfileRow(profile, profile.title || profile.status || "Ami");
 
     const dm = document.createElement("button");
     dm.type = "button";
     dm.textContent = "DM";
     dm.addEventListener("click", () => openDirectMessage(profile.id));
 
-    item.append(label, dm);
+    item.append(dm);
     friendList.append(item);
   });
 }
@@ -688,17 +942,14 @@ function renderFriendSearchResults(profiles) {
   }
 
   profiles.forEach((profile) => {
-    const item = document.createElement("div");
-    item.className = "social-item";
-
-    const label = createStackedLabel(profile.pseudo, profile.title || profile.status || "Joueur");
+    const item = createProfileRow(profile, profile.title || profile.status || "Joueur");
 
     const add = document.createElement("button");
     add.type = "button";
     add.textContent = "Ajouter";
     add.addEventListener("click", () => sendFriendRequest(profile.id));
 
-    item.append(label, add);
+    item.append(add);
     friendResults.append(item);
   });
 }
@@ -816,6 +1067,41 @@ async function joinRoom(code) {
 }
 
 function bindLocalControls() {
+  modalCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeProfileModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeProfileModal();
+    }
+  });
+
+  if (selfProfileButton) {
+    selfProfileButton.addEventListener("click", () => {
+      if (currentUser) {
+        openProfile(currentUser.id);
+      }
+    });
+  }
+
+  if (modalAddFriend) {
+    modalAddFriend.addEventListener("click", async () => {
+      if (activeProfile) {
+        await sendFriendRequest(activeProfile.id);
+      }
+    });
+  }
+
+  if (modalDm) {
+    modalDm.addEventListener("click", async () => {
+      if (activeProfile) {
+        await openDirectMessage(activeProfile.id);
+        closeProfileModal();
+      }
+    });
+  }
+
   if (searchInput) {
     searchInput.addEventListener("input", renderMessages);
   }
@@ -867,7 +1153,7 @@ function bindLocalControls() {
 
       const { data: profiles, error } = await client
         .from("profiles")
-        .select("id,pseudo,title,status,avatar_color")
+        .select(PROFILE_SELECT)
         .ilike("pseudo", `%${query}%`)
         .neq("id", currentUser.id)
         .limit(8);
@@ -965,6 +1251,23 @@ async function startChat() {
     renderMessages();
     return;
   }
+
+  profileCache.set(currentUser.id, {
+    id: currentUser.id,
+    pseudo: currentUser.pseudo,
+    title: currentUser.title,
+    status: currentUser.status,
+    bio: currentUser.bio,
+    website: currentUser.website,
+    avatar_color: currentUser.avatarColor,
+    avatar_url: currentUser.avatarUrl,
+    name_style: currentUser.nameStyle,
+    name_color_a: currentUser.nameColorA,
+    name_color_b: currentUser.nameColorB,
+    created_at: currentUser.createdAt,
+    last_seen: currentUser.lastSeen
+  });
+  syncSelfPanel();
 
   client = await window.RipSupabase.getClient();
   setStatus("Connexion au salon...", "");

@@ -45,6 +45,10 @@ body {
   line-height: 1.8;
 }
 
+.app-body {
+  overflow-x: hidden;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -237,6 +241,36 @@ h3 {
 
 .button.full {
   width: 100%;
+}
+
+.display-name {
+  color: var(--name-color-a, var(--accent));
+}
+
+.display-name[data-name-style="gradient"] {
+  background: linear-gradient(90deg, var(--name-color-a, var(--accent)), var(--name-color-b, var(--accent-2)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.display-name[data-name-style="rainbow"] {
+  background: linear-gradient(90deg, #ff5b7f, #ffdc5e, #39ff88, #7dd3fc, #c084fc, #ff5b7f);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rainbow-name 4s linear infinite;
+}
+
+@keyframes rainbow-name {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 240% 0;
+  }
 }
 
 .section {
@@ -531,10 +565,21 @@ h3 {
   text-transform: uppercase;
 }
 
+.profile-avatar img,
+.message-avatar img,
+.online-avatar img,
+.social-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
 .profile-avatar {
   width: 88px;
   height: 88px;
   font-size: 1.6rem;
+  overflow: hidden;
 }
 
 .profile-subline {
@@ -587,6 +632,15 @@ h3 {
   width: min(100%, 1180px);
   margin: 0 auto;
   padding: clamp(18px, 4vw, 32px);
+}
+
+.app-page {
+  min-height: calc(100vh - 90px);
+  padding: 18px;
+}
+
+.app-shell {
+  width: min(100%, 1540px);
 }
 
 .chat-heading {
@@ -668,7 +722,18 @@ h3 {
   gap: 20px;
 }
 
+.discord-layout {
+  grid-template-columns: 280px minmax(0, 1fr) 250px;
+  align-items: start;
+}
+
 .chat-sidebar {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.member-sidebar {
   display: grid;
   align-content: start;
   gap: 16px;
@@ -701,6 +766,36 @@ h3 {
 .mini-check {
   color: var(--muted);
   font-size: 0.62rem;
+}
+
+.self-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.self-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.self-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.small-avatar {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  overflow: hidden;
 }
 
 .room-list,
@@ -810,6 +905,10 @@ h3 {
   box-shadow: 2px 2px 0 var(--black);
 }
 
+.profile-social-item {
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+}
+
 .online-list {
   display: grid;
   gap: 10px;
@@ -820,7 +919,7 @@ h3 {
 
 .online-list li {
   display: grid;
-  grid-template-columns: 14px 1fr;
+  grid-template-columns: 30px 1fr;
   gap: 4px 10px;
   align-items: center;
 }
@@ -831,12 +930,49 @@ h3 {
   font-size: 0.52rem;
 }
 
-.online-dot {
-  width: 12px;
-  height: 12px;
+.online-avatar,
+.social-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 2px solid var(--black);
   background: var(--avatar-color, var(--accent));
+  color: var(--black);
   box-shadow: 2px 2px 0 var(--black);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.52rem;
+  overflow: hidden;
+  text-transform: uppercase;
+}
+
+.social-profile-label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.social-profile-label small {
+  color: var(--muted);
+  font-size: 0.44rem;
+}
+
+.name-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .mini-check {
@@ -905,8 +1041,12 @@ h3 {
 .message-avatar {
   width: 42px;
   height: 42px;
+  padding: 0;
+  border-radius: 0;
+  cursor: pointer;
   font-size: 0.78rem;
   box-shadow: 3px 3px 0 var(--black);
+  overflow: hidden;
 }
 
 .message-body {
@@ -1038,6 +1178,117 @@ body.chat-compact .message-avatar {
 
 body.chat-compact .chat-message p {
   font-size: 0.62rem;
+}
+
+.color-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.color-pair > div {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.profile-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(5, 5, 6, 0.72);
+  cursor: pointer;
+}
+
+.profile-modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  border: 4px solid var(--black);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.profile-modal-banner {
+  height: 78px;
+  border-bottom: 4px solid var(--black);
+  background:
+    linear-gradient(90deg, rgba(57, 255, 136, 0.18), rgba(255, 220, 94, 0.18)),
+    var(--surface-strong);
+}
+
+.profile-modal-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: end;
+  padding: 0 22px 18px;
+  transform: translateY(-28px);
+  margin-bottom: -20px;
+}
+
+.profile-modal-head h2 {
+  margin-bottom: 8px;
+  font-size: clamp(1rem, 3vw, 1.55rem);
+}
+
+.profile-modal-head p,
+.profile-meta,
+.profile-modal-card .profile-bio {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.profile-modal-card .profile-bio,
+.profile-modal-card .profile-link,
+.profile-meta,
+.profile-modal-card .profile-actions {
+  margin: 0 22px 20px;
+}
+
+.profile-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-meta div {
+  padding: 12px;
+  border: 3px solid var(--black);
+  background: var(--surface-strong);
+}
+
+.profile-meta dt {
+  color: var(--accent-2);
+  font-size: 0.5rem;
+}
+
+.profile-meta dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 6px 8px;
+  border: 2px solid var(--black);
+  background: var(--accent-2);
+  color: var(--black);
+  box-shadow: 2px 2px 0 var(--black);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.48rem;
 }
 
 .site-footer {

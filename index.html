@@ -3,115 +3,195 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RIP | Site officiel</title>
+  <title>RIP | Tchat</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <header class="site-header">
-    <a class="logo" href="index.html#accueil">RIP</a>
+<body class="app-body">
+  <header class="site-header app-header">
+    <a class="logo" href="index.html">RIP</a>
 
     <nav class="nav" aria-label="Navigation principale">
-      <a href="index.html#accueil">Accueil</a>
-      <a href="index.html#services">Services</a>
-      <a href="index.html#projets">Projets</a>
-      <a href="chat.html">Tchat</a>
+      <a href="index.html">Tchat</a>
       <a href="connexion.html" data-auth-visible="guest">Connexion</a>
       <a href="inscription.html" data-auth-visible="guest">Inscription</a>
-      <a href="compte.html" data-auth-visible="user">Compte</a>
+      <a href="compte.html" data-auth-visible="user">Mon profil</a>
     </nav>
   </header>
 
-  <main>
-    <section id="accueil" class="hero">
-      <div class="hero-content">
-        <p class="eyebrow">Pixel web</p>
-        <h1>Un site arcade propre avec espace membre.</h1>
-        <p class="hero-text">
-          Cette base contient une page d'accueil, une inscription Supabase,
-          une connexion persistante et un tchat en ligne.
-        </p>
-        <div class="hero-actions">
-          <a class="button primary" href="inscription.html" data-auth-visible="guest">Creer un compte</a>
-          <a class="button secondary" href="connexion.html" data-auth-visible="guest">Se connecter</a>
-          <a class="button secondary" href="chat.html">Ouvrir le tchat</a>
-          <a class="button primary" href="compte.html" data-auth-visible="user">Ouvrir mon compte</a>
+  <main class="chat-page app-page">
+    <section class="chat-shell app-shell" aria-labelledby="chat-title">
+      <div class="chat-heading app-heading">
+        <div>
+          <p class="eyebrow">RIP live</p>
+          <h1 id="chat-title">Tchat en ligne</h1>
+          <p class="current-room-line">
+            <span data-current-room-name>General</span>
+            <span data-current-room-kind>public</span>
+            <code data-current-room-code hidden></code>
+          </p>
         </div>
-      </div>
-    </section>
-
-    <section id="services" class="section">
-      <div class="section-heading">
-        <p class="eyebrow">Fonctions</p>
-        <h2>Les bases sont pretes.</h2>
+        <div class="chat-status" data-chat-status>Initialisation...</div>
       </div>
 
-      <div class="grid">
-        <article class="card">
-          <h3>Inscription</h3>
-          <p>Creation de compte avec Supabase Auth, pseudo et mot de passe fort.</p>
-        </article>
-
-        <article class="card">
-          <h3>Connexion</h3>
-          <p>Verification du compte et session conservee meme apres fermeture du site.</p>
-        </article>
-
-        <article class="card">
-          <h3>Securite</h3>
-          <p>Les mots de passe sont geres par Supabase Auth, pas par le JavaScript du site.</p>
-        </article>
-
-        <article class="card">
-          <h3>Tchat</h3>
-          <p>Une page tchat est prete a brancher sur Supabase pour recevoir les messages en direct.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="projets" class="section split">
-      <div>
-        <p class="eyebrow">Important</p>
-        <h2>Supabase garde les comptes et messages.</h2>
+      <div class="setup-box" data-chat-setup hidden>
+        <strong>Configuration Supabase manquante</strong>
+        <p>
+          Ouvre le fichier <code>supabase-config.js</code>, colle ton URL Supabase
+          et ta cle publique anon. Le tchat deviendra en ligne apres le push GitHub.
+        </p>
       </div>
 
-      <div class="project-list">
-        <article class="project">
-          <span>01</span>
-          <strong>Ce qui marche</strong>
-          <small>Un visiteur peut creer un compte Supabase et se reconnecter plus tard.</small>
-        </article>
-
-        <article class="project">
-          <span>02</span>
-          <strong>Ce qui est protege</strong>
-          <small>Les messages du tchat sont limites aux utilisateurs connectes.</small>
-        </article>
-
-        <article class="project">
-          <span>03</span>
-          <strong>Base en ligne</strong>
-          <small>Supabase stocke les comptes, profils et messages dans une vraie base.</small>
-        </article>
+      <div class="setup-box" data-chat-login hidden>
+        <strong>Connexion requise</strong>
+        <p>Connecte-toi avec ton compte Supabase avant d'envoyer un message.</p>
+        <a class="button primary" href="connexion.html">Se connecter</a>
       </div>
-    </section>
 
-    <section id="contact" class="section contact">
-      <p class="eyebrow">Contact</p>
-      <h2>Personnalise cette zone.</h2>
-      <p>Remplace l'adresse par ton vrai email ou ajoute tes reseaux.</p>
-      <a class="button primary" href="mailto:contact@example.com">contact@example.com</a>
+      <div class="chat-layout discord-layout">
+        <aside class="chat-sidebar" aria-label="Salons et amis">
+          <div class="chat-panel self-panel">
+            <span class="panel-label">Moi</span>
+            <div class="self-card">
+              <button class="profile-avatar small-avatar" type="button" data-self-avatar data-open-self-profile>?</button>
+              <div>
+                <strong class="display-name" data-self-name>Invite</strong>
+                <small data-self-status>Connecte-toi</small>
+              </div>
+            </div>
+            <a class="button secondary full" href="compte.html" data-auth-visible="user">Modifier mon profil</a>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Salons</span>
+            <div class="room-list" data-room-list>
+              <button type="button" disabled>Chargement...</button>
+            </div>
+
+            <form class="mini-form" data-create-room-form>
+              <label for="room-name">Nouveau salon</label>
+              <input id="room-name" name="name" type="text" maxlength="40" placeholder="Nom du salon">
+              <select name="kind" aria-label="Type de salon">
+                <option value="public">Public</option>
+                <option value="private">Prive</option>
+              </select>
+              <button type="submit">Creer</button>
+            </form>
+
+            <form class="mini-form" data-join-room-form>
+              <label for="room-code">Rejoindre avec code</label>
+              <input id="room-code" name="code" type="text" maxlength="20" placeholder="ex: a1b2c3d4">
+              <button type="submit">Rejoindre</button>
+            </form>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Amis</span>
+            <form class="mini-form" data-find-friend-form>
+              <label for="friend-search">Chercher un pseudo</label>
+              <input id="friend-search" name="query" type="search" maxlength="20" placeholder="Pseudo">
+              <button type="submit">Chercher</button>
+            </form>
+            <div class="social-list" data-friend-results></div>
+            <span class="panel-label small">Demandes</span>
+            <div class="social-list" data-friend-requests></div>
+            <span class="panel-label small">Mes amis</span>
+            <div class="social-list" data-friend-list></div>
+          </div>
+        </aside>
+
+        <div class="chat-main app-chat-main">
+          <div class="chat-tools">
+            <label class="sr-only" for="chat-search">Rechercher</label>
+            <input id="chat-search" data-chat-search type="search" placeholder="Rechercher dans ce salon...">
+            <button class="button secondary" type="button" data-clear-chat-view>Nettoyer vue</button>
+          </div>
+
+          <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+
+          <div class="typing-line" data-typing-line></div>
+
+          <form class="chat-form" data-chat-form>
+            <label class="sr-only" for="chat-message">Message</label>
+            <textarea id="chat-message" name="message" maxlength="500" rows="3" placeholder="Ecris ton message..." required></textarea>
+            <div class="chat-submit-panel">
+              <span class="char-counter"><span data-char-count>0</span>/500</span>
+              <div class="quick-actions" aria-label="Actions rapides">
+                <button type="button" data-quick-message="GG">GG</button>
+                <button type="button" data-quick-message="Salut !">Salut</button>
+                <button type="button" data-quick-message="Je reviens.">AFK</button>
+              </div>
+              <button class="button primary" type="submit">Envoyer</button>
+            </div>
+          </form>
+        </div>
+
+        <aside class="member-sidebar" aria-label="Membres et options">
+          <div class="chat-panel">
+            <span class="panel-label">En ligne</span>
+            <strong data-online-count>0</strong>
+            <ul class="online-list" data-online-list>
+              <li>Aucun joueur</li>
+            </ul>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Stats</span>
+            <p><strong data-message-count>0</strong> messages charges</p>
+            <p><strong data-result-count>0</strong> visibles</p>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Options</span>
+            <label class="mini-check">
+              <input type="checkbox" data-autoscroll checked>
+              <span>Auto-scroll</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-compact-chat>
+              <span>Compact</span>
+            </label>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <span>RIP</span>
-    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
-  </footer>
+  <div class="profile-modal" data-profile-modal hidden aria-hidden="true">
+    <button class="profile-modal-backdrop" type="button" data-profile-close aria-label="Fermer le profil"></button>
+    <section class="profile-modal-card" aria-labelledby="profile-modal-name">
+      <button class="modal-close" type="button" data-profile-close>Fermer</button>
+      <div class="profile-modal-banner"></div>
+      <div class="profile-modal-head">
+        <div class="profile-avatar" data-modal-avatar>?</div>
+        <div>
+          <h2 id="profile-modal-name" class="display-name" data-modal-name>Profil</h2>
+          <p data-modal-title>Nouveau joueur</p>
+        </div>
+      </div>
+      <p class="profile-bio" data-modal-bio>Aucune bio.</p>
+      <a class="profile-link" data-modal-website href="#" target="_blank" rel="noreferrer" hidden>Site perso</a>
+      <dl class="profile-meta">
+        <div>
+          <dt>Statut</dt>
+          <dd data-modal-status>En ligne</dd>
+        </div>
+        <div>
+          <dt>Compte</dt>
+          <dd data-modal-created>--</dd>
+        </div>
+      </dl>
+      <div class="profile-actions">
+        <button class="button secondary" type="button" data-modal-add-friend>Ajouter</button>
+        <button class="button primary" type="button" data-modal-dm>DM</button>
+      </div>
+    </section>
+  </div>
 
-  <script src="supabase-config.js?v=20260619-social2"></script>
-  <script src="supabase-client.js?v=20260619-social2"></script>
-  <script src="auth.js?v=20260619-social2"></script>
-  <script src="script.js?v=20260619-social2"></script>
+  <script src="supabase-config.js?v=20260619-discord1"></script>
+  <script src="supabase-client.js?v=20260619-discord1"></script>
+  <script src="auth.js?v=20260619-discord1"></script>
+  <script src="script.js?v=20260619-discord1"></script>
+  <script type="module" src="chat.js?v=20260619-discord1"></script>
 </body>
 </html>

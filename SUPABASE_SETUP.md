@@ -1,6 +1,6 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes, profils, salons, amis, DM et tchat est deja dans le site.
+Le code des comptes, profils, avatars, salons, amis, DM et tchat est deja dans le site.
 Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
@@ -23,12 +23,14 @@ Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL q
 Le script cree :
 
 - `profiles` pour les pseudos et emails
-- les champs de profil : titre, statut, bio, couleur, lien, derniere activite
+- les champs de profil : titre, statut, bio, lien, derniere activite
+- les apparences de profil : photo de profil, couleur avatar, pseudo simple/degrade/arc-en-ciel
+- le bucket Storage `avatars` avec une limite de 2 Mo par image
 - `chat_rooms` pour les salons publics, prives et DM
 - `room_members` pour savoir qui a acces a chaque salon
 - `friend_requests` pour les demandes d'amis
 - `chat_messages` pour les messages par salon
-- les regles RLS pour securiser les donnees
+- les regles RLS pour securiser les donnees et les uploads d'avatars
 - un trigger qui cree un profil a chaque inscription Supabase
 - les fonctions `join_room_by_code` et `create_or_get_dm`
 - les index utiles pour les statistiques et le tchat
@@ -65,7 +67,7 @@ Ne colle pas une URL qui finit par `/rest/v1/`.
 & "C:\Program Files\Git\cmd\git.exe" -C E:\RIP push
 ```
 
-Ensuite, ouvre `chat.html` sur ton site GitHub Pages.
+Ensuite, ouvre `index.html` sur ton site GitHub Pages. La page d'accueil est maintenant le tchat principal.
 
 ## Apres une mise a jour du site
 
@@ -73,7 +75,7 @@ Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplem
 `supabase-chat.sql` dans Supabase. Le script utilise `if not exists`, donc il peut etre relance sans supprimer les comptes existants.
 
 Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
-`chat_rooms`, `room_members`, `friend_requests` ou `room_id`.
+`chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style` ou `avatars`.
 
 Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 
@@ -87,6 +89,10 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - presence en ligne par salon
 - indicateur quand quelqu'un ecrit
 - recherche dans le salon actif
+- page d'accueil transformee en app de tchat
+- photos de profil via Supabase Storage
+- pseudos en couleur simple, degrade deux couleurs ou arc-en-ciel
+- carte profil publique au clic sur un joueur
 
 ## Probleme frequent
 

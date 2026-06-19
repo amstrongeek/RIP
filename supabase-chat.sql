@@ -1,5 +1,5 @@
 -- A copier dans Supabase > SQL Editor > New query > Run.
--- Script relancable : comptes, profils, salons publics/prives, amis et DM.
+-- Script relancable : comptes, profils, avatars, salons publics/prives, amis et DM.
 
 create extension if not exists pgcrypto;
 
@@ -12,6 +12,10 @@ create table if not exists public.profiles (
   bio text not null default '' check (char_length(bio) <= 240),
   website text not null default '' check (website = '' or website ~ '^https://[^[:space:]]+$'),
   avatar_color text not null default '#39ff88' check (avatar_color ~ '^#[0-9A-Fa-f]{6}$'),
+  avatar_url text not null default '' check (avatar_url = '' or avatar_url ~ '^https://[^[:space:]]+$'),
+  name_style text not null default 'solid' check (name_style in ('solid', 'gradient', 'rainbow')),
+  name_color_a text not null default '#39ff88' check (name_color_a ~ '^#[0-9A-Fa-f]{6}$'),
+  name_color_b text not null default '#ffdc5e' check (name_color_b ~ '^#[0-9A-Fa-f]{6}$'),
   last_seen timestamptz,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
@@ -22,8 +26,26 @@ alter table public.profiles add column if not exists status text not null defaul
 alter table public.profiles add column if not exists bio text not null default '';
 alter table public.profiles add column if not exists website text not null default '';
 alter table public.profiles add column if not exists avatar_color text not null default '#39ff88';
+alter table public.profiles add column if not exists avatar_url text not null default '';
+alter table public.profiles add column if not exists name_style text not null default 'solid';
+alter table public.profiles add column if not exists name_color_a text not null default '#39ff88';
+alter table public.profiles add column if not exists name_color_b text not null default '#ffdc5e';
 alter table public.profiles add column if not exists last_seen timestamptz;
 alter table public.profiles add column if not exists updated_at timestamptz not null default now();
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars',
+  'avatars',
+  true,
+  2097152,
+  array['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 create table if not exists public.chat_rooms (
   id uuid primary key default gen_random_uuid(),
@@ -87,6 +109,48 @@ alter table public.chat_rooms enable row level security;
 alter table public.room_members enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.friend_requests enable row level security;
+
+drop policy if exists "Avatars publics lisibles" on storage.objects;
+drop policy if exists "Les utilisateurs ajoutent leur avatar" on storage.objects;
+drop policy if exists "Les utilisateurs modifient leur avatar" on storage.objects;
+drop policy if exists "Les utilisateurs suppriment leur avatar" on storage.objects;
+
+create policy "Avatars publics lisibles"
+on storage.objects
+for select
+to public
+using (bucket_id = 'avatars');
+
+create policy "Les utilisateurs ajoutent leur avatar"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Les utilisateurs modifient leur avatar"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Les utilisateurs suppriment leur avatar"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
 
 create or replace function public.room_is_public(target_room uuid)
 returns boolean

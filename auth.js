@@ -1,4 +1,14 @@
 (function () {
+  const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,name_style,name_color_a,name_color_b,created_at,updated_at,last_seen";
+  const AVATAR_BUCKET = "avatars";
+  const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
+  const AVATAR_EXTENSIONS = {
+    "image/gif": "gif",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp"
+  };
+
   let readyPromise = null;
   let cachedUser = null;
   let authSubscription = null;
@@ -90,6 +100,10 @@
       bio: (profile && profile.bio) || "",
       website: (profile && profile.website) || "",
       avatarColor: (profile && profile.avatar_color) || "#39ff88",
+      avatarUrl: (profile && profile.avatar_url) || "",
+      nameStyle: (profile && profile.name_style) || "solid",
+      nameColorA: (profile && profile.name_color_a) || "#39ff88",
+      nameColorB: (profile && profile.name_color_b) || "#ffdc5e",
       createdAt: (profile && profile.created_at) || authUser.created_at || new Date().toISOString(),
       updatedAt: (profile && profile.updated_at) || null,
       lastSeen: (profile && profile.last_seen) || null
@@ -119,7 +133,7 @@
 
     const response = await supabase
       .from("profiles")
-      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .select(PROFILE_SELECT)
       .eq("id", authUser.id)
       .maybeSingle();
 
@@ -150,11 +164,15 @@
           email: authUser.email || "",
           title: "Nouveau joueur",
           status: "En ligne",
-          avatar_color: "#39ff88"
+          avatar_color: "#39ff88",
+          avatar_url: "",
+          name_style: "solid",
+          name_color_a: "#39ff88",
+          name_color_b: "#ffdc5e"
         },
         { onConflict: "id" }
       )
-      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .select(PROFILE_SELECT)
       .single();
 
     if (!response.error) {
@@ -220,6 +238,10 @@
     const bio = String(input.bio || "").trim().slice(0, 240);
     const website = String(input.website || "").trim().slice(0, 120);
     const avatarColor = String(input.avatarColor || "#39ff88").trim();
+    const avatarUrl = String(input.avatarUrl || "").trim().slice(0, 500);
+    const nameStyle = String(input.nameStyle || "solid").trim();
+    const nameColorA = String(input.nameColorA || "#39ff88").trim();
+    const nameColorB = String(input.nameColorB || "#ffdc5e").trim();
 
     if (!/^[A-Za-z0-9_-]{3,20}$/.test(pseudo)) {
       throw authError("pseudo-invalid");
@@ -229,8 +251,20 @@
       throw authError("avatar-invalid");
     }
 
+    if (!["solid", "gradient", "rainbow"].includes(nameStyle)) {
+      throw authError("name-style-invalid");
+    }
+
+    if (!/^#[0-9A-Fa-f]{6}$/.test(nameColorA) || !/^#[0-9A-Fa-f]{6}$/.test(nameColorB)) {
+      throw authError("avatar-invalid");
+    }
+
     if (website && !/^https:\/\/[^\s]+$/i.test(website)) {
       throw authError("website-invalid");
+    }
+
+    if (avatarUrl && !/^https:\/\/[^\s]+$/i.test(avatarUrl)) {
+      throw authError("avatar-invalid");
     }
 
     return {
@@ -239,7 +273,11 @@
       status,
       bio,
       website,
-      avatarColor
+      avatarColor,
+      avatarUrl,
+      nameStyle,
+      nameColorA,
+      nameColorB
     };
   }
 
@@ -360,11 +398,15 @@
         bio: profile.bio,
         website: profile.website,
         avatar_color: profile.avatarColor,
+        avatar_url: profile.avatarUrl || (cachedUser && cachedUser.avatarUrl) || "",
+        name_style: profile.nameStyle,
+        name_color_a: profile.nameColorA,
+        name_color_b: profile.nameColorB,
         updated_at: new Date().toISOString(),
         last_seen: new Date().toISOString()
       })
       .eq("id", authData.user.id)
-      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .select(PROFILE_SELECT)
       .single();
 
     if (error) {
@@ -380,6 +422,48 @@
     cachedUser = publicUser(authData.user, data);
     dispatchAuthChange();
     return cachedUser;
+  }
+
+  async function uploadAvatar(file) {
+    if (!file || !file.size) {
+      return "";
+    }
+
+    const extension = AVATAR_EXTENSIONS[file.type];
+
+    if (!extension) {
+      throw authError("avatar-type-invalid");
+    }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      throw authError("avatar-too-large");
+    }
+
+    const supabase = await getSupabase();
+    const { data: authData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !authData.user) {
+      throw authError("invalid-login", userError);
+    }
+
+    const path = `${authData.user.id}/avatar.${extension}`;
+    const { error } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: true
+      });
+
+    if (error) {
+      throw authError("avatar-upload-failed", error);
+    }
+
+    const { data } = supabase.storage
+      .from(AVATAR_BUCKET)
+      .getPublicUrl(path);
+
+    return data.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
   }
 
   async function stats() {
@@ -432,6 +516,7 @@
     ready,
     register,
     stats,
+    uploadAvatar,
     updateProfile
   };
 }());

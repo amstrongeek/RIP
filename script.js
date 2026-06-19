@@ -29,7 +29,11 @@ function humanAuthError(error) {
     "profile-load-failed": "Profil introuvable. Relance le SQL Supabase puis reessaie.",
     "profile-save-failed": "Profil impossible a enregistrer. Relance le SQL Supabase puis reessaie.",
     "profile-update-failed": "Profil impossible a mettre a jour. Relance le SQL Supabase puis reessaie.",
+    "avatar-too-large": "Image trop lourde. Maximum : 2 Mo.",
+    "avatar-type-invalid": "Format invalide. Utilise PNG, JPG, WEBP ou GIF.",
+    "avatar-upload-failed": "Photo impossible a envoyer. Relance le SQL Supabase puis reessaie.",
     "avatar-invalid": "Couleur avatar invalide.",
+    "name-style-invalid": "Style de pseudo invalide.",
     "website-invalid": "Le lien doit commencer par https://",
     "password-weak": "Mot de passe trop faible.",
     "password-mismatch": "Les mots de passe ne correspondent pas.",
@@ -85,8 +89,31 @@ function setAvatar(element, user) {
     return;
   }
 
-  element.textContent = (user.pseudo || "?").slice(0, 1).toUpperCase();
+  element.replaceChildren();
   element.style.setProperty("--avatar-color", user.avatarColor || "#39ff88");
+
+  if (user.avatarUrl) {
+    const image = document.createElement("img");
+    image.src = user.avatarUrl;
+    image.alt = `Avatar de ${user.pseudo || "joueur"}`;
+    image.loading = "lazy";
+    element.append(image);
+    return;
+  }
+
+  element.textContent = (user.pseudo || "?").slice(0, 1).toUpperCase();
+}
+
+function applyNameStyle(element, user) {
+  if (!element || !user) {
+    return;
+  }
+
+  element.textContent = user.pseudo || "Player";
+  element.classList.add("display-name");
+  element.dataset.nameStyle = user.nameStyle || "solid";
+  element.style.setProperty("--name-color-a", user.nameColorA || "#39ff88");
+  element.style.setProperty("--name-color-b", user.nameColorB || "#ffdc5e");
 }
 
 function applyProfile(user) {
@@ -97,7 +124,7 @@ function applyProfile(user) {
   document.querySelectorAll("[data-profile-avatar]").forEach((element) => setAvatar(element, user));
 
   document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
-    element.textContent = user.pseudo;
+    applyNameStyle(element, user);
   });
 
   document.querySelectorAll("[data-account-title]").forEach((element) => {
@@ -227,7 +254,7 @@ function bindLoginForm() {
       await window.RipAuth.login(data.email, data.password);
       setMessage(message, "Connexion reussie. Redirection...", "success");
       setTimeout(() => {
-        window.location.href = "compte.html";
+        window.location.href = "index.html";
       }, 650);
     } catch (error) {
       console.error("Erreur connexion:", error);
@@ -275,6 +302,9 @@ async function bindAccountPage() {
     form.elements.title.value = user.title || "";
     form.elements.status.value = user.status || "En ligne";
     form.elements.avatarColor.value = user.avatarColor || "#39ff88";
+    form.elements.nameStyle.value = user.nameStyle || "solid";
+    form.elements.nameColorA.value = user.nameColorA || "#39ff88";
+    form.elements.nameColorB.value = user.nameColorB || "#ffdc5e";
     form.elements.website.value = user.website || "";
     form.elements.bio.value = user.bio || "";
   }
@@ -319,13 +349,23 @@ function bindProfileForm() {
 
     const submit = form.querySelector("button[type='submit']");
     const data = Object.fromEntries(new FormData(form));
+    const avatarInput = form.elements.avatarFile;
+    const avatarFile = avatarInput && avatarInput.files ? avatarInput.files[0] : null;
 
     submit.disabled = true;
-    setMessage(message, "Sauvegarde du profil...", null);
+    setMessage(message, avatarFile && avatarFile.size ? "Upload de la photo..." : "Sauvegarde du profil...", null);
 
     try {
+      if (avatarFile && avatarFile.size) {
+        data.avatarUrl = await window.RipAuth.uploadAvatar(avatarFile);
+        setMessage(message, "Sauvegarde du profil...", null);
+      }
+
       const user = await window.RipAuth.updateProfile(data);
       applyProfile(user);
+      if (avatarInput) {
+        avatarInput.value = "";
+      }
       setMessage(message, "Profil sauvegarde.", "success");
     } catch (error) {
       console.error("Erreur profil:", error);
