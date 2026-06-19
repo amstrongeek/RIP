@@ -5,8 +5,23 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   pseudo text not null check (char_length(pseudo) between 3 and 20),
   email text not null,
+  title text not null default 'Nouveau joueur' check (char_length(title) between 1 and 32),
+  status text not null default 'En ligne' check (char_length(status) between 1 and 32),
+  bio text not null default '' check (char_length(bio) <= 240),
+  website text not null default '' check (website = '' or website ~ '^https://[^[:space:]]+$'),
+  avatar_color text not null default '#39ff88' check (avatar_color ~ '^#[0-9A-Fa-f]{6}$'),
+  last_seen timestamptz,
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists title text not null default 'Nouveau joueur';
+alter table public.profiles add column if not exists status text not null default 'En ligne';
+alter table public.profiles add column if not exists bio text not null default '';
+alter table public.profiles add column if not exists website text not null default '';
+alter table public.profiles add column if not exists avatar_color text not null default '#39ff88';
+alter table public.profiles add column if not exists last_seen timestamptz;
+alter table public.profiles add column if not exists updated_at timestamptz not null default now();
 
 alter table public.profiles enable row level security;
 
@@ -53,7 +68,9 @@ begin
   on conflict (id) do update
   set
     pseudo = excluded.pseudo,
-    email = excluded.email;
+    email = excluded.email,
+    last_seen = now(),
+    updated_at = now();
 
   return new;
 end;
@@ -98,6 +115,9 @@ with check (
 
 create index if not exists chat_messages_created_at_idx
 on public.chat_messages (created_at desc);
+
+create index if not exists chat_messages_user_id_idx
+on public.chat_messages (user_id);
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update on public.profiles to authenticated;

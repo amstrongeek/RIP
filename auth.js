@@ -85,7 +85,14 @@
       id: authUser.id,
       pseudo: normalizePseudo(profile && profile.pseudo) || metadataPseudo || "Player",
       email: authUser.email || (profile && profile.email) || "",
-      createdAt: (profile && profile.created_at) || authUser.created_at || new Date().toISOString()
+      title: (profile && profile.title) || "Nouveau joueur",
+      status: (profile && profile.status) || "En ligne",
+      bio: (profile && profile.bio) || "",
+      website: (profile && profile.website) || "",
+      avatarColor: (profile && profile.avatar_color) || "#39ff88",
+      createdAt: (profile && profile.created_at) || authUser.created_at || new Date().toISOString(),
+      updatedAt: (profile && profile.updated_at) || null,
+      lastSeen: (profile && profile.last_seen) || null
     };
   }
 
@@ -110,21 +117,51 @@
       return null;
     }
 
-    const { data, error } = await supabase
+    const response = await supabase
+      .from("profiles")
+      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (!response.error) {
+      return response.data;
+    }
+
+    const fallback = await supabase
       .from("profiles")
       .select("id,pseudo,email,created_at")
       .eq("id", authUser.id)
       .maybeSingle();
 
-    if (error) {
-      throw authError("profile-load-failed", error);
+    if (fallback.error) {
+      throw authError("profile-load-failed", fallback.error);
     }
 
-    return data;
+    return fallback.data;
   }
 
   async function saveProfile(supabase, authUser, pseudo) {
-    const { data, error } = await supabase
+    const response = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: authUser.id,
+          pseudo: normalizePseudo(pseudo) || "Player",
+          email: authUser.email || "",
+          title: "Nouveau joueur",
+          status: "En ligne",
+          avatar_color: "#39ff88"
+        },
+        { onConflict: "id" }
+      )
+      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .single();
+
+    if (!response.error) {
+      return response.data;
+    }
+
+    const fallback = await supabase
       .from("profiles")
       .upsert(
         {
@@ -137,11 +174,11 @@
       .select("id,pseudo,email,created_at")
       .single();
 
-    if (error) {
-      throw authError("profile-save-failed", error);
+    if (fallback.error) {
+      throw authError("profile-save-failed", fallback.error);
     }
 
-    return data;
+    return fallback.data;
   }
 
   async function ensureProfile(supabase, authUser, pseudo) {
@@ -167,9 +204,43 @@
 
     const supabase = await getSupabase();
     const profile = await ensureProfile(supabase, sessionUser);
+    await supabase
+      .from("profiles")
+      .update({ last_seen: new Date().toISOString() })
+      .eq("id", sessionUser.id);
     cachedUser = publicUser(sessionUser, profile);
     dispatchAuthChange();
     return cachedUser;
+  }
+
+  function validateProfile(input) {
+    const pseudo = normalizePseudo(input.pseudo);
+    const title = String(input.title || "Nouveau joueur").trim().slice(0, 32);
+    const status = String(input.status || "En ligne").trim().slice(0, 32);
+    const bio = String(input.bio || "").trim().slice(0, 240);
+    const website = String(input.website || "").trim().slice(0, 120);
+    const avatarColor = String(input.avatarColor || "#39ff88").trim();
+
+    if (!/^[A-Za-z0-9_-]{3,20}$/.test(pseudo)) {
+      throw authError("pseudo-invalid");
+    }
+
+    if (!/^#[0-9A-Fa-f]{6}$/.test(avatarColor)) {
+      throw authError("avatar-invalid");
+    }
+
+    if (website && !/^https:\/\/[^\s]+$/i.test(website)) {
+      throw authError("website-invalid");
+    }
+
+    return {
+      pseudo,
+      title,
+      status,
+      bio,
+      website,
+      avatarColor
+    };
   }
 
   async function ready() {
@@ -271,6 +342,77 @@
     return cachedUser;
   }
 
+  async function updateProfile(input) {
+    const profile = validateProfile(input);
+    const supabase = await getSupabase();
+    const { data: authData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !authData.user) {
+      throw authError("invalid-login", userError);
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        pseudo: profile.pseudo,
+        title: profile.title,
+        status: profile.status,
+        bio: profile.bio,
+        website: profile.website,
+        avatar_color: profile.avatarColor,
+        updated_at: new Date().toISOString(),
+        last_seen: new Date().toISOString()
+      })
+      .eq("id", authData.user.id)
+      .select("id,pseudo,email,title,status,bio,website,avatar_color,created_at,updated_at,last_seen")
+      .single();
+
+    if (error) {
+      throw authError("profile-update-failed", error);
+    }
+
+    await supabase.auth.updateUser({
+      data: {
+        pseudo: profile.pseudo
+      }
+    });
+
+    cachedUser = publicUser(authData.user, data);
+    dispatchAuthChange();
+    return cachedUser;
+  }
+
+  async function stats() {
+    const user = currentUser();
+
+    if (!user) {
+      return {
+        messageCount: 0,
+        lastMessageAt: null
+      };
+    }
+
+    const supabase = await getSupabase();
+    const [{ count }, { data: lastMessages }] = await Promise.all([
+      supabase
+        .from("chat_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase
+        .from("chat_messages")
+        .select("created_at,content")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+    ]);
+
+    return {
+      messageCount: count || 0,
+      lastMessageAt: lastMessages && lastMessages[0] ? lastMessages[0].created_at : null,
+      lastMessage: lastMessages && lastMessages[0] ? lastMessages[0].content : ""
+    };
+  }
+
   async function logout() {
     const supabase = await getSupabase();
     await supabase.auth.signOut();
@@ -288,6 +430,8 @@
     logout,
     passwordScore,
     ready,
-    register
+    register,
+    stats,
+    updateProfile
   };
 }());

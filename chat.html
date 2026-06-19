@@ -45,13 +45,61 @@
         <a class="button primary" href="connexion.html">Se connecter</a>
       </div>
 
-      <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+      <div class="chat-layout">
+        <aside class="chat-sidebar" aria-label="Infos du salon">
+          <div class="chat-panel">
+            <span class="panel-label">En ligne</span>
+            <strong data-online-count>0</strong>
+            <ul class="online-list" data-online-list>
+              <li>Aucun joueur</li>
+            </ul>
+          </div>
 
-      <form class="chat-form" data-chat-form>
-        <label class="sr-only" for="chat-message">Message</label>
-        <textarea id="chat-message" name="message" maxlength="500" rows="3" placeholder="Ecris ton message..." required></textarea>
-        <button class="button primary" type="submit">Envoyer</button>
-      </form>
+          <div class="chat-panel">
+            <span class="panel-label">Stats</span>
+            <p><strong data-message-count>0</strong> messages charges</p>
+            <p><strong data-result-count>0</strong> visibles</p>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Options</span>
+            <label class="mini-check">
+              <input type="checkbox" data-autoscroll checked>
+              <span>Auto-scroll</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-compact-chat>
+              <span>Compact</span>
+            </label>
+          </div>
+        </aside>
+
+        <div class="chat-main">
+          <div class="chat-tools">
+            <label class="sr-only" for="chat-search">Rechercher</label>
+            <input id="chat-search" data-chat-search type="search" placeholder="Rechercher un message...">
+            <button class="button secondary" type="button" data-clear-chat-view>Nettoyer vue</button>
+          </div>
+
+          <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+
+          <div class="typing-line" data-typing-line></div>
+
+          <form class="chat-form" data-chat-form>
+            <label class="sr-only" for="chat-message">Message</label>
+            <textarea id="chat-message" name="message" maxlength="500" rows="3" placeholder="Ecris ton message..." required></textarea>
+            <div class="chat-submit-panel">
+              <span class="char-counter"><span data-char-count>0</span>/500</span>
+              <div class="quick-actions" aria-label="Actions rapides">
+                <button type="button" data-quick-message="GG">GG</button>
+                <button type="button" data-quick-message="Salut !">Salut</button>
+                <button type="button" data-quick-message="Je reviens.">AFK</button>
+              </div>
+              <button class="button primary" type="submit">Envoyer</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -60,10 +108,10 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260619-auth2"></script>
-  <script src="supabase-client.js?v=20260619-auth2"></script>
-  <script src="auth.js?v=20260619-auth2"></script>
-  <script src="script.js?v=20260619-auth2"></script>
-  <script type="module" src="chat.js?v=20260619-auth2"></script>
+  <script src="supabase-config.js?v=20260619-social1"></script>
+  <script src="supabase-client.js?v=20260619-social1"></script>
+  <script src="auth.js?v=20260619-social1"></script>
+  <script src="script.js?v=20260619-social1"></script>
+  <script type="module" src="chat.js?v=20260619-social1"></script>
 </body>
 </html>

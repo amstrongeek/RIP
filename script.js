@@ -28,6 +28,9 @@ function humanAuthError(error) {
     "signup-failed": "Inscription impossible. Verifie l'email ou reessaie plus tard.",
     "profile-load-failed": "Profil introuvable. Relance le SQL Supabase puis reessaie.",
     "profile-save-failed": "Profil impossible a enregistrer. Relance le SQL Supabase puis reessaie.",
+    "profile-update-failed": "Profil impossible a mettre a jour. Relance le SQL Supabase puis reessaie.",
+    "avatar-invalid": "Couleur avatar invalide.",
+    "website-invalid": "Le lien doit commencer par https://",
     "password-weak": "Mot de passe trop faible.",
     "password-mismatch": "Les mots de passe ne correspondent pas.",
     "terms-required": "Tu dois accepter la creation d'un compte Supabase.",
@@ -37,6 +40,97 @@ function humanAuthError(error) {
   };
 
   return messages[error && error.code] || "Action impossible pour le moment.";
+}
+
+function formatShortDate(value) {
+  if (!value) {
+    return "--";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function formatRelativeDate(value) {
+  if (!value) {
+    return "--";
+  }
+
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+
+  if (diffMinutes < 1) {
+    return "maintenant";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+
+  if (diffHours < 24) {
+    return `${diffHours} h`;
+  }
+
+  return formatShortDate(value);
+}
+
+function setAvatar(element, user) {
+  if (!element || !user) {
+    return;
+  }
+
+  element.textContent = (user.pseudo || "?").slice(0, 1).toUpperCase();
+  element.style.setProperty("--avatar-color", user.avatarColor || "#39ff88");
+}
+
+function applyProfile(user) {
+  if (!user) {
+    return;
+  }
+
+  document.querySelectorAll("[data-profile-avatar]").forEach((element) => setAvatar(element, user));
+
+  document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
+    element.textContent = user.pseudo;
+  });
+
+  document.querySelectorAll("[data-account-title]").forEach((element) => {
+    element.textContent = user.title || "Nouveau joueur";
+  });
+
+  document.querySelectorAll("[data-account-status]").forEach((element) => {
+    element.textContent = user.status || "En ligne";
+  });
+
+  document.querySelectorAll("[data-account-email]").forEach((element) => {
+    element.textContent = user.email;
+  });
+
+  document.querySelectorAll("[data-account-created]").forEach((element) => {
+    element.textContent = formatShortDate(user.createdAt);
+  });
+
+  document.querySelectorAll("[data-account-bio]").forEach((element) => {
+    element.textContent = user.bio || "Ajoute une bio pour presenter ton univers.";
+  });
+
+  document.querySelectorAll("[data-account-website]").forEach((element) => {
+    if (user.website) {
+      element.hidden = false;
+      element.href = user.website;
+      element.textContent = user.website.replace(/^https:\/\//, "");
+      return;
+    }
+
+    element.hidden = true;
+    element.removeAttribute("href");
+  });
 }
 
 async function updateAuthVisibility() {
@@ -168,22 +262,77 @@ async function bindAccountPage() {
     return;
   }
 
-  const createdAt = new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).format(new Date(user.createdAt));
+  applyProfile(user);
 
-  document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
-    element.textContent = user.pseudo;
-  });
+  const form = document.querySelector("#profile-form");
+  const bioInput = document.querySelector("#profile-bio");
+  const bioCounter = document.querySelector("[data-profile-bio-count]");
+  const statsMessages = document.querySelector("[data-account-messages]");
+  const statsLastMessage = document.querySelector("[data-account-last-message]");
 
-  document.querySelectorAll("[data-account-email]").forEach((element) => {
-    element.textContent = user.email;
-  });
+  if (form) {
+    form.elements.pseudo.value = user.pseudo || "";
+    form.elements.title.value = user.title || "";
+    form.elements.status.value = user.status || "En ligne";
+    form.elements.avatarColor.value = user.avatarColor || "#39ff88";
+    form.elements.website.value = user.website || "";
+    form.elements.bio.value = user.bio || "";
+  }
 
-  document.querySelectorAll("[data-account-created]").forEach((element) => {
-    element.textContent = createdAt;
+  if (bioInput && bioCounter) {
+    const syncBioCount = () => {
+      bioCounter.textContent = String(bioInput.value.length);
+    };
+
+    syncBioCount();
+    bioInput.addEventListener("input", syncBioCount);
+  }
+
+  if (window.RipAuth.stats) {
+    try {
+      const stats = await window.RipAuth.stats();
+
+      if (statsMessages) {
+        statsMessages.textContent = String(stats.messageCount);
+      }
+
+      if (statsLastMessage) {
+        statsLastMessage.textContent = formatRelativeDate(stats.lastMessageAt);
+      }
+    } catch (error) {
+      console.error("Erreur stats:", error);
+    }
+  }
+}
+
+function bindProfileForm() {
+  const form = document.querySelector("#profile-form");
+
+  if (!form || !window.RipAuth || !window.RipAuth.updateProfile) {
+    return;
+  }
+
+  const message = document.querySelector("#account-message");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const submit = form.querySelector("button[type='submit']");
+    const data = Object.fromEntries(new FormData(form));
+
+    submit.disabled = true;
+    setMessage(message, "Sauvegarde du profil...", null);
+
+    try {
+      const user = await window.RipAuth.updateProfile(data);
+      applyProfile(user);
+      setMessage(message, "Profil sauvegarde.", "success");
+    } catch (error) {
+      console.error("Erreur profil:", error);
+      setMessage(message, humanAuthError(error), "error");
+    } finally {
+      submit.disabled = false;
+    }
   });
 }
 
@@ -214,5 +363,6 @@ onReady(async () => {
   bindSignupForm();
   bindLoginForm();
   await bindAccountPage();
+  bindProfileForm();
   bindLogoutButtons();
 });

@@ -22,9 +22,11 @@ Le code des comptes et du tchat est deja dans le site. Il reste seulement a cree
 Le script cree :
 
 - `profiles` pour les pseudos et emails
+- les champs de profil : titre, statut, bio, couleur, lien, derniere activite
 - `chat_messages` pour les messages
 - les regles RLS pour securiser les donnees
 - un trigger qui cree un profil a chaque inscription Supabase
+- les index utiles pour les statistiques de messages
 
 ## 3. Recuperer les infos publiques
 
@@ -59,6 +61,11 @@ Ne colle pas une URL qui finit par `/rest/v1/`.
 ```
 
 Ensuite, ouvre `chat.html` sur ton site GitHub Pages.
+
+## Apres une mise a jour du site
+
+Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplement tout le fichier
+`supabase-chat.sql` dans Supabase. Le script utilise `if not exists`, donc il peut etre relance sans supprimer les comptes existants.
 
 ## Probleme frequent
 

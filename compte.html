@@ -21,12 +21,22 @@
     </nav>
   </header>
 
-  <main class="auth-page" data-protected-page>
-    <section class="auth-panel wide" aria-labelledby="account-title">
-      <p class="eyebrow">Espace membre</p>
-      <h1 id="account-title">Bienvenue <span data-account-pseudo>joueur</span>.</h1>
+  <main class="profile-page" data-protected-page>
+    <section class="profile-shell" aria-labelledby="account-title">
+      <div class="profile-hero">
+        <div class="profile-avatar" data-profile-avatar>?</div>
+        <div>
+          <p class="eyebrow">Profil joueur</p>
+          <h1 id="account-title">Bienvenue <span data-account-pseudo>joueur</span>.</h1>
+          <p class="profile-subline">
+            <span data-account-title>Nouveau joueur</span>
+            <span class="dot-separator">/</span>
+            <span data-account-status>En ligne</span>
+          </p>
+        </div>
+      </div>
 
-      <div class="account-grid">
+      <div class="account-grid profile-stats">
         <article class="account-box">
           <span>Email</span>
           <strong data-account-email>--</strong>
@@ -36,18 +46,82 @@
           <span>Compte cree</span>
           <strong data-account-created>--</strong>
         </article>
+
+        <article class="account-box">
+          <span>Messages</span>
+          <strong data-account-messages>0</strong>
+        </article>
+
+        <article class="account-box">
+          <span>Dernier message</span>
+          <strong data-account-last-message>--</strong>
+        </article>
       </div>
 
-      <div class="security-warning">
-        <strong>Note securite</strong>
-        <p>
-          Les comptes sont maintenant geres par Supabase Auth. Ton profil et ta
-          session restent disponibles apres fermeture du site.
-        </p>
+      <div class="profile-layout">
+        <section class="profile-card" aria-labelledby="profile-preview-title">
+          <h2 id="profile-preview-title">Carte profil</h2>
+          <p data-account-bio class="profile-bio">Ajoute une bio pour presenter ton univers.</p>
+          <a data-account-website class="profile-link" href="#" target="_blank" rel="noreferrer" hidden>Site perso</a>
+          <div class="security-warning">
+            <strong>Compte Supabase</strong>
+            <p>
+              Ton profil, ta session et tes messages sont maintenant conserves dans Supabase.
+            </p>
+          </div>
+        </section>
+
+        <section class="profile-card" aria-labelledby="profile-edit-title">
+          <h2 id="profile-edit-title">Modifier</h2>
+          <form class="auth-form" id="profile-form">
+            <div class="field">
+              <label for="profile-pseudo">Pseudo</label>
+              <input id="profile-pseudo" name="pseudo" type="text" minlength="3" maxlength="20" required>
+            </div>
+
+            <div class="field">
+              <label for="profile-title">Titre</label>
+              <input id="profile-title" name="title" type="text" maxlength="32" placeholder="Ex: Speedrunner">
+            </div>
+
+            <div class="field">
+              <label for="profile-status">Statut</label>
+              <select id="profile-status" name="status">
+                <option value="En ligne">En ligne</option>
+                <option value="Disponible">Disponible</option>
+                <option value="Occupe">Occupe</option>
+                <option value="AFK">AFK</option>
+                <option value="En mission">En mission</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="profile-color">Couleur avatar</label>
+              <input id="profile-color" name="avatarColor" type="color" value="#39ff88">
+            </div>
+
+            <div class="field">
+              <label for="profile-website">Lien</label>
+              <input id="profile-website" name="website" type="url" placeholder="https://exemple.com">
+              <small>Optionnel. Le lien doit commencer par https://</small>
+            </div>
+
+            <div class="field">
+              <label for="profile-bio">Bio</label>
+              <textarea id="profile-bio" name="bio" maxlength="240" rows="4" placeholder="Parle vite fait de toi..."></textarea>
+              <small><span data-profile-bio-count>0</span>/240</small>
+            </div>
+
+            <button class="button primary full" type="submit">Sauvegarder</button>
+            <p class="form-message" id="account-message" role="status" aria-live="polite"></p>
+          </form>
+        </section>
       </div>
 
-      <button class="button secondary full" type="button" data-logout>Deconnexion</button>
-      <p class="form-message" id="account-message" role="status" aria-live="polite"></p>
+      <div class="profile-actions">
+        <a class="button secondary" href="chat.html">Aller au tchat</a>
+        <button class="button secondary" type="button" data-logout>Deconnexion</button>
+      </div>
     </section>
   </main>
 
@@ -56,9 +130,9 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260619-auth2"></script>
-  <script src="supabase-client.js?v=20260619-auth2"></script>
-  <script src="auth.js?v=20260619-auth2"></script>
-  <script src="script.js?v=20260619-auth2"></script>
+  <script src="supabase-config.js?v=20260619-social1"></script>
+  <script src="supabase-client.js?v=20260619-social1"></script>
+  <script src="auth.js?v=20260619-social1"></script>
+  <script src="script.js?v=20260619-social1"></script>
 </body>
 </html>
