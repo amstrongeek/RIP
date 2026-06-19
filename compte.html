@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; base-uri 'self'; form-action 'self';">
+  <title>Compte | RIP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="index.html#accueil">RIP</a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="index.html#accueil">Accueil</a>
+      <a href="index.html#services">Services</a>
+      <a href="index.html#projets">Projets</a>
+      <a href="connexion.html" data-auth-visible="guest">Connexion</a>
+      <a href="inscription.html" data-auth-visible="guest">Inscription</a>
+      <a href="compte.html" data-auth-visible="user">Compte</a>
+    </nav>
+  </header>
+
+  <main class="auth-page" data-protected-page>
+    <section class="auth-panel wide" aria-labelledby="account-title">
+      <p class="eyebrow">Espace membre</p>
+      <h1 id="account-title">Bienvenue <span data-account-pseudo>joueur</span>.</h1>
+
+      <div class="account-grid">
+        <article class="account-box">
+          <span>Email</span>
+          <strong data-account-email>--</strong>
+        </article>
+
+        <article class="account-box">
+          <span>Compte cree</span>
+          <strong data-account-created>--</strong>
+        </article>
+      </div>
+
+      <div class="security-warning">
+        <strong>Note securite</strong>
+        <p>
+          Cette version est adaptee a GitHub Pages : elle protege le mot de passe
+          contre le stockage en clair, mais ne remplace pas une vraie auth serveur.
+        </p>
+      </div>
+
+      <button class="button secondary full" type="button" data-logout>Deconnexion</button>
+      <p class="form-message" id="account-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="auth.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

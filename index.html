@@ -3,92 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; base-uri 'self'; form-action 'self';">
   <title>RIP | Site officiel</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="site-header">
-    <a class="logo" href="#accueil">RIP</a>
+    <a class="logo" href="index.html#accueil">RIP</a>
 
     <nav class="nav" aria-label="Navigation principale">
-      <a href="#accueil">Accueil</a>
-      <a href="#services">Services</a>
-      <a href="#projets">Projets</a>
-      <a href="#contact">Contact</a>
+      <a href="index.html#accueil">Accueil</a>
+      <a href="index.html#services">Services</a>
+      <a href="index.html#projets">Projets</a>
+      <a href="connexion.html" data-auth-visible="guest">Connexion</a>
+      <a href="inscription.html" data-auth-visible="guest">Inscription</a>
+      <a href="compte.html" data-auth-visible="user">Compte</a>
     </nav>
   </header>
 
   <main>
     <section id="accueil" class="hero">
       <div class="hero-content">
-        <p class="eyebrow">Site web moderne</p>
-        <h1>Construis une presence en ligne simple, rapide et propre.</h1>
+        <p class="eyebrow">Pixel web</p>
+        <h1>Un site arcade propre avec espace membre.</h1>
         <p class="hero-text">
-          Une base de site claire pour presenter ton activite, tes projets ou ton univers.
-          Modifie les textes, ajoute tes images, puis publie sur GitHub Pages.
+          Cette base contient une page d'accueil, une inscription, une connexion
+          et un espace compte utilisables directement dans le navigateur.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="#contact">Me contacter</a>
-          <a class="button secondary" href="#projets">Voir les projets</a>
+          <a class="button primary" href="inscription.html" data-auth-visible="guest">Creer un compte</a>
+          <a class="button secondary" href="connexion.html" data-auth-visible="guest">Se connecter</a>
+          <a class="button primary" href="compte.html" data-auth-visible="user">Ouvrir mon compte</a>
         </div>
       </div>
     </section>
 
     <section id="services" class="section">
       <div class="section-heading">
-        <p class="eyebrow">Ce que tu peux montrer</p>
-        <h2>Une structure prete a personnaliser</h2>
+        <p class="eyebrow">Fonctions</p>
+        <h2>Les bases sont pretes.</h2>
       </div>
 
       <div class="grid">
         <article class="card">
-          <h3>Presentation</h3>
-          <p>Explique qui tu es, ce que tu fais, et pourquoi les visiteurs devraient te suivre.</p>
+          <h3>Inscription</h3>
+          <p>Creation de compte avec validation email, pseudo et mot de passe fort.</p>
         </article>
 
         <article class="card">
-          <h3>Projets</h3>
-          <p>Ajoute tes creations, tes liens GitHub, tes captures d'ecran ou tes demos.</p>
+          <h3>Connexion</h3>
+          <p>Verification du compte et ouverture d'une session dans ce navigateur.</p>
         </article>
 
         <article class="card">
-          <h3>Contact</h3>
-          <p>Permets aux visiteurs de te contacter avec un email, Discord, Instagram ou autre.</p>
+          <h3>Securite</h3>
+          <p>Les mots de passe sont haches avec PBKDF2 via Web Crypto, jamais stockes en clair.</p>
         </article>
       </div>
     </section>
 
     <section id="projets" class="section split">
       <div>
-        <p class="eyebrow">Projets</p>
-        <h2>Remplace cette partie par tes vrais contenus.</h2>
+        <p class="eyebrow">Important</p>
+        <h2>GitHub Pages reste un site statique.</h2>
       </div>
 
       <div class="project-list">
-        <a class="project" href="#" aria-label="Projet 1">
+        <article class="project">
           <span>01</span>
-          <strong>Premier projet</strong>
-          <small>Ajoute une description courte ici.</small>
-        </a>
+          <strong>Ce qui marche</strong>
+          <small>Un visiteur peut creer un compte et se reconnecter sur le meme navigateur.</small>
+        </article>
 
-        <a class="project" href="#" aria-label="Projet 2">
+        <article class="project">
           <span>02</span>
-          <strong>Deuxieme projet</strong>
-          <small>Ajoute une description courte ici.</small>
-        </a>
+          <strong>Ce qui est protege</strong>
+          <small>Le mot de passe n'est pas sauvegarde en clair dans le stockage local.</small>
+        </article>
 
-        <a class="project" href="#" aria-label="Projet 3">
+        <article class="project">
           <span>03</span>
-          <strong>Troisieme projet</strong>
-          <small>Ajoute une description courte ici.</small>
-        </a>
+          <strong>Pour une vraie prod</strong>
+          <small>Il faudra brancher Supabase, Firebase, Auth0 ou un backend avec base de donnees.</small>
+        </article>
       </div>
     </section>
 
     <section id="contact" class="section contact">
       <p class="eyebrow">Contact</p>
-      <h2>Tu veux modifier ce site ?</h2>
-      <p>Remplace l'adresse ci-dessous par ton vrai email ou ajoute tes reseaux.</p>
+      <h2>Personnalise cette zone.</h2>
+      <p>Remplace l'adresse par ton vrai email ou ajoute tes reseaux.</p>
       <a class="button primary" href="mailto:contact@example.com">contact@example.com</a>
     </section>
   </main>
@@ -98,6 +102,7 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
+  <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
