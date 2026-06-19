@@ -97,6 +97,13 @@ function validConfig(config) {
   );
 }
 
+function normalizeProjectUrl(url) {
+  return String(url || "")
+    .trim()
+    .replace(/\/rest\/v1\/?$/, "")
+    .replace(/\/+$/, "");
+}
+
 async function loadMessages(client) {
   const { data, error } = await client
     .from("chat_messages")
@@ -129,8 +136,9 @@ async function startChat() {
   }
 
   const config = window.RIP_SUPABASE;
+  const projectUrl = normalizeProjectUrl(config && config.url);
 
-  if (!validConfig(config)) {
+  if (!validConfig({ ...config, url: projectUrl })) {
     setupBox.hidden = false;
     setStatus("Supabase a configurer", "error");
     setChatEnabled(false);
@@ -139,7 +147,7 @@ async function startChat() {
   }
 
   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  const client = createClient(config.url, config.anonKey);
+  const client = createClient(projectUrl, config.anonKey);
 
   setStatus("Connexion au salon...", "");
   setChatEnabled(false);
@@ -149,6 +157,7 @@ async function startChat() {
     setChatEnabled(true);
     setStatus(`Connecte : ${user.pseudo}`, "success");
   } catch (error) {
+    console.error("Erreur Supabase:", error);
     setStatus("Erreur de chargement", "error");
     setChatEnabled(false);
     return;

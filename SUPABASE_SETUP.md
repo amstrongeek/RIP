@@ -23,7 +23,7 @@ Le code du tchat est deja dans le site. Il reste seulement a creer la base Supab
 
 Dans Supabase, recupere :
 
-- l'URL du projet, qui commence par `https://`
+- l'URL du projet, qui commence par `https://` et se termine par `.supabase.co`
 - la cle publique `anon` ou `publishable`
 
 Tu peux generalement les trouver dans le bouton `Connect`, ou dans `Settings > API Keys`.
@@ -40,6 +40,8 @@ window.RIP_SUPABASE = {
   anonKey: "TA_CLE_PUBLIQUE"
 };
 ```
+
+Ne colle pas une URL qui finit par `/rest/v1/`.
 
 ## 5. Envoyer sur GitHub
 
