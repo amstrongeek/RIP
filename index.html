@@ -2,9 +2,102 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Mon site</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP | Site officiel</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Mon premier site</h1>
+  <header class="site-header">
+    <a class="logo" href="#accueil">RIP</a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="#accueil">Accueil</a>
+      <a href="#services">Services</a>
+      <a href="#projets">Projets</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="accueil" class="hero">
+      <div class="hero-content">
+        <p class="eyebrow">Site web moderne</p>
+        <h1>Construis une presence en ligne simple, rapide et propre.</h1>
+        <p class="hero-text">
+          Une base de site claire pour presenter ton activite, tes projets ou ton univers.
+          Modifie les textes, ajoute tes images, puis publie sur GitHub Pages.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#contact">Me contacter</a>
+          <a class="button secondary" href="#projets">Voir les projets</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="services" class="section">
+      <div class="section-heading">
+        <p class="eyebrow">Ce que tu peux montrer</p>
+        <h2>Une structure prete a personnaliser</h2>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>Presentation</h3>
+          <p>Explique qui tu es, ce que tu fais, et pourquoi les visiteurs devraient te suivre.</p>
+        </article>
+
+        <article class="card">
+          <h3>Projets</h3>
+          <p>Ajoute tes creations, tes liens GitHub, tes captures d'ecran ou tes demos.</p>
+        </article>
+
+        <article class="card">
+          <h3>Contact</h3>
+          <p>Permets aux visiteurs de te contacter avec un email, Discord, Instagram ou autre.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="projets" class="section split">
+      <div>
+        <p class="eyebrow">Projets</p>
+        <h2>Remplace cette partie par tes vrais contenus.</h2>
+      </div>
+
+      <div class="project-list">
+        <a class="project" href="#" aria-label="Projet 1">
+          <span>01</span>
+          <strong>Premier projet</strong>
+          <small>Ajoute une description courte ici.</small>
+        </a>
+
+        <a class="project" href="#" aria-label="Projet 2">
+          <span>02</span>
+          <strong>Deuxieme projet</strong>
+          <small>Ajoute une description courte ici.</small>
+        </a>
+
+        <a class="project" href="#" aria-label="Projet 3">
+          <span>03</span>
+          <strong>Troisieme projet</strong>
+          <small>Ajoute une description courte ici.</small>
+        </a>
+      </div>
+    </section>
+
+    <section id="contact" class="section contact">
+      <p class="eyebrow">Contact</p>
+      <h2>Tu veux modifier ce site ?</h2>
+      <p>Remplace l'adresse ci-dessous par ton vrai email ou ajoute tes reseaux.</p>
+      <a class="button primary" href="mailto:contact@example.com">contact@example.com</a>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>
