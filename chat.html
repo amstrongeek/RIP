@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tchat | RIP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="index.html#accueil">RIP</a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="index.html#accueil">Accueil</a>
+      <a href="index.html#services">Services</a>
+      <a href="index.html#projets">Projets</a>
+      <a href="chat.html">Tchat</a>
+      <a href="connexion.html" data-auth-visible="guest">Connexion</a>
+      <a href="inscription.html" data-auth-visible="guest">Inscription</a>
+      <a href="compte.html" data-auth-visible="user">Compte</a>
+    </nav>
+  </header>
+
+  <main class="chat-page">
+    <section class="chat-shell" aria-labelledby="chat-title">
+      <div class="chat-heading">
+        <div>
+          <p class="eyebrow">Tchat live</p>
+          <h1 id="chat-title">Salon RIP</h1>
+        </div>
+        <div class="chat-status" data-chat-status>Initialisation...</div>
+      </div>
+
+      <div class="setup-box" data-chat-setup hidden>
+        <strong>Configuration Supabase manquante</strong>
+        <p>
+          Ouvre le fichier <code>supabase-config.js</code>, colle ton URL Supabase
+          et ta cle publique anon. Le tchat deviendra en ligne apres le push GitHub.
+        </p>
+      </div>
+
+      <div class="setup-box" data-chat-login hidden>
+        <strong>Connexion requise</strong>
+        <p>Connecte-toi avec ton compte local avant d'envoyer un message.</p>
+        <a class="button primary" href="connexion.html">Se connecter</a>
+      </div>
+
+      <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+
+      <form class="chat-form" data-chat-form>
+        <label class="sr-only" for="chat-message">Message</label>
+        <textarea id="chat-message" name="message" maxlength="500" rows="3" placeholder="Ecris ton message..." required></textarea>
+        <button class="button primary" type="submit">Envoyer</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="auth.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="script.js"></script>
+  <script type="module" src="chat.js"></script>
+</body>
+</html>
