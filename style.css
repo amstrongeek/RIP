@@ -1,6 +1,13 @@
-@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("assets/fonts/press-start-2p.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
 
 :root {
+  --pixel-font: "Press Start 2P", "Courier New", monospace;
   --bg: #101014;
   --surface: #1c1c28;
   --surface-strong: #262637;
@@ -18,6 +25,7 @@
 
 * {
   box-sizing: border-box;
+  font-family: var(--pixel-font);
 }
 
 html {
@@ -27,7 +35,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  font-family: "Press Start 2P", "Courier New", monospace;
+  font-family: var(--pixel-font);
   background:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -91,6 +99,18 @@ input:focus-visible {
 
 [hidden] {
   display: none !important;
+}
+
+[data-auth-visible="user"] {
+  display: none !important;
+}
+
+body.is-authenticated [data-auth-visible="guest"] {
+  display: none !important;
+}
+
+body.is-authenticated [data-auth-visible="user"] {
+  display: inline-flex !important;
 }
 
 .hero {
@@ -278,12 +298,25 @@ h3 {
   min-height: calc(100vh - 156px);
   display: grid;
   place-items: center;
-  padding: 56px clamp(16px, 5vw, 72px);
+  padding: 48px clamp(16px, 5vw, 72px) 72px;
 }
 
 .auth-panel {
   width: min(100%, 560px);
   padding: clamp(22px, 5vw, 38px);
+  position: relative;
+}
+
+.auth-panel::before {
+  content: "PLAYER LOGIN";
+  position: absolute;
+  top: -18px;
+  left: 18px;
+  padding: 4px 8px;
+  border: 3px solid var(--black);
+  background: var(--accent-2);
+  color: var(--black);
+  font-size: 0.52rem;
 }
 
 .auth-panel.wide {
@@ -321,6 +354,7 @@ h3 {
   color: var(--black);
   font: inherit;
   font-size: 0.72rem;
+  box-shadow: inset 4px 4px 0 rgba(0, 0, 0, 0.18);
 }
 
 .check-row {

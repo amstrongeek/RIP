@@ -40,6 +40,8 @@ function updateAuthVisibility() {
   const auth = window.RipAuth;
   const user = auth ? auth.currentUser() : null;
 
+  document.body.classList.toggle("is-authenticated", Boolean(user));
+
   document.querySelectorAll("[data-auth-visible]").forEach((element) => {
     const rule = element.getAttribute("data-auth-visible");
     element.hidden = (rule === "guest" && user) || (rule === "user" && !user);
