@@ -602,6 +602,28 @@ h3 {
   font-size: clamp(1.5rem, 4vw, 2.7rem);
 }
 
+.current-room-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.6rem;
+}
+
+.current-room-line span,
+.current-room-line code {
+  padding: 5px 7px;
+  border: 2px solid var(--black);
+  background: var(--surface-strong);
+  box-shadow: 2px 2px 0 var(--black);
+}
+
+.current-room-line span:first-child {
+  color: var(--accent);
+}
+
 .chat-status {
   min-width: 180px;
   padding: 10px 12px;
@@ -667,11 +689,125 @@ h3 {
   text-transform: uppercase;
 }
 
+.panel-label.small {
+  margin-top: 14px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.48rem;
+}
+
 .chat-panel p,
 .online-list li,
 .mini-check {
   color: var(--muted);
   font-size: 0.62rem;
+}
+
+.room-list,
+.social-list,
+.mini-form {
+  display: grid;
+  gap: 8px;
+}
+
+.room-list {
+  margin-bottom: 16px;
+}
+
+.room-button,
+.mini-form button,
+.social-item button,
+.room-list button:disabled {
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 2px solid var(--black);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 2px 2px 0 var(--black);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.5rem;
+}
+
+.room-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.room-button {
+  width: 100%;
+  text-align: left;
+}
+
+.room-button[data-active="true"] {
+  background: var(--accent);
+  color: var(--black);
+}
+
+.room-button span,
+.social-item span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.room-button strong,
+.social-item strong {
+  overflow-wrap: anywhere;
+}
+
+.room-button small,
+.social-item small {
+  color: inherit;
+  opacity: 0.78;
+  font-size: 0.44rem;
+}
+
+.mini-form {
+  margin-top: 12px;
+}
+
+.mini-form label {
+  color: var(--accent-2);
+  font-size: 0.5rem;
+}
+
+.mini-form input,
+.mini-form select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px;
+  border: 2px solid var(--black);
+  border-radius: 0;
+  background: var(--text);
+  color: var(--black);
+  box-shadow: inset 3px 3px 0 rgba(0, 0, 0, 0.18);
+  font: inherit;
+  font-size: 0.54rem;
+}
+
+.mini-form button,
+.social-item button {
+  color: var(--black);
+  background: var(--accent-2);
+}
+
+.social-list {
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+
+.social-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 2px solid var(--black);
+  background: rgba(5, 5, 6, 0.25);
+  box-shadow: 2px 2px 0 var(--black);
 }
 
 .online-list {
@@ -965,6 +1101,16 @@ body.chat-compact .chat-message p {
 @media (max-width: 520px) {
   h1 {
     font-size: 1.35rem;
+  }
+
+  .social-item {
+    grid-template-columns: 1fr;
+  }
+
+  .room-button,
+  .mini-form button,
+  .social-item button {
+    width: 100%;
   }
 
   .button {

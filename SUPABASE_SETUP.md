@@ -1,6 +1,7 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes et du tchat est deja dans le site. Il reste seulement a creer/configurer la base Supabase.
+Le code des comptes, profils, salons, amis, DM et tchat est deja dans le site.
+Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
 
@@ -23,10 +24,14 @@ Le script cree :
 
 - `profiles` pour les pseudos et emails
 - les champs de profil : titre, statut, bio, couleur, lien, derniere activite
-- `chat_messages` pour les messages
+- `chat_rooms` pour les salons publics, prives et DM
+- `room_members` pour savoir qui a acces a chaque salon
+- `friend_requests` pour les demandes d'amis
+- `chat_messages` pour les messages par salon
 - les regles RLS pour securiser les donnees
 - un trigger qui cree un profil a chaque inscription Supabase
-- les index utiles pour les statistiques de messages
+- les fonctions `join_room_by_code` et `create_or_get_dm`
+- les index utiles pour les statistiques et le tchat
 
 ## 3. Recuperer les infos publiques
 
@@ -67,8 +72,27 @@ Ensuite, ouvre `chat.html` sur ton site GitHub Pages.
 Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplement tout le fichier
 `supabase-chat.sql` dans Supabase. Le script utilise `if not exists`, donc il peut etre relance sans supprimer les comptes existants.
 
+Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
+`chat_rooms`, `room_members`, `friend_requests` ou `room_id`.
+
+Apres le `Run`, recharge ton site avec `Ctrl + F5`.
+
+## Fonctions ajoutees
+
+- salons publics visibles par les comptes connectes
+- salons prives avec code d'invitation affiche dans le salon
+- demandes d'amis par pseudo
+- liste d'amis
+- messages prives en DM entre amis acceptes
+- presence en ligne par salon
+- indicateur quand quelqu'un ecrit
+- recherche dans le salon actif
+
 ## Probleme frequent
 
 Si l'inscription dit que l'email doit etre confirme, ouvre ta boite mail et clique le lien Supabase.
 Pour tester plus vite, tu peux aussi aller dans Supabase > Authentication > Sign In / Providers > Email
 et desactiver temporairement la confirmation email.
+
+Si tu ne vois pas `New query`, ouvre `SQL Editor` dans le menu de gauche, puis cherche un bouton `+`,
+`New query`, `Blank query` ou `Create query` selon l'interface Supabase.

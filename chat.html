@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tchat | RIP</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,6 +28,11 @@
         <div>
           <p class="eyebrow">Tchat live</p>
           <h1 id="chat-title">Salon RIP</h1>
+          <p class="current-room-line">
+            <span data-current-room-name>General</span>
+            <span data-current-room-kind>public</span>
+            <code data-current-room-code hidden></code>
+          </p>
         </div>
         <div class="chat-status" data-chat-status>Initialisation...</div>
       </div>
@@ -47,6 +53,43 @@
 
       <div class="chat-layout">
         <aside class="chat-sidebar" aria-label="Infos du salon">
+          <div class="chat-panel">
+            <span class="panel-label">Salons</span>
+            <div class="room-list" data-room-list>
+              <button type="button" disabled>Chargement...</button>
+            </div>
+
+            <form class="mini-form" data-create-room-form>
+              <label for="room-name">Nouveau salon</label>
+              <input id="room-name" name="name" type="text" maxlength="40" placeholder="Nom du salon">
+              <select name="kind" aria-label="Type de salon">
+                <option value="public">Public</option>
+                <option value="private">Prive</option>
+              </select>
+              <button type="submit">Creer</button>
+            </form>
+
+            <form class="mini-form" data-join-room-form>
+              <label for="room-code">Rejoindre avec code</label>
+              <input id="room-code" name="code" type="text" maxlength="20" placeholder="ex: a1b2c3d4">
+              <button type="submit">Rejoindre</button>
+            </form>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Amis</span>
+            <form class="mini-form" data-find-friend-form>
+              <label for="friend-search">Chercher un pseudo</label>
+              <input id="friend-search" name="query" type="search" maxlength="20" placeholder="Pseudo">
+              <button type="submit">Chercher</button>
+            </form>
+            <div class="social-list" data-friend-results></div>
+            <span class="panel-label small">Demandes</span>
+            <div class="social-list" data-friend-requests></div>
+            <span class="panel-label small">Mes amis</span>
+            <div class="social-list" data-friend-list></div>
+          </div>
+
           <div class="chat-panel">
             <span class="panel-label">En ligne</span>
             <strong data-online-count>0</strong>
@@ -77,7 +120,7 @@
         <div class="chat-main">
           <div class="chat-tools">
             <label class="sr-only" for="chat-search">Rechercher</label>
-            <input id="chat-search" data-chat-search type="search" placeholder="Rechercher un message...">
+            <input id="chat-search" data-chat-search type="search" placeholder="Rechercher dans ce salon...">
             <button class="button secondary" type="button" data-clear-chat-view>Nettoyer vue</button>
           </div>
 
@@ -108,10 +151,10 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260619-social1"></script>
-  <script src="supabase-client.js?v=20260619-social1"></script>
-  <script src="auth.js?v=20260619-social1"></script>
-  <script src="script.js?v=20260619-social1"></script>
-  <script type="module" src="chat.js?v=20260619-social1"></script>
+  <script src="supabase-config.js?v=20260619-social2"></script>
+  <script src="supabase-client.js?v=20260619-social2"></script>
+  <script src="auth.js?v=20260619-social2"></script>
+  <script src="script.js?v=20260619-social2"></script>
+  <script type="module" src="chat.js?v=20260619-social2"></script>
 </body>
 </html>

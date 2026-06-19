@@ -1,3 +1,4 @@
+const DEFAULT_ROOM_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
@@ -18,10 +19,25 @@ const charCount = document.querySelector("[data-char-count]");
 const autoscrollInput = document.querySelector("[data-autoscroll]");
 const compactInput = document.querySelector("[data-compact-chat]");
 const clearViewButton = document.querySelector("[data-clear-chat-view]");
+const roomList = document.querySelector("[data-room-list]");
+const createRoomForm = document.querySelector("[data-create-room-form]");
+const joinRoomForm = document.querySelector("[data-join-room-form]");
+const findFriendForm = document.querySelector("[data-find-friend-form]");
+const friendResults = document.querySelector("[data-friend-results]");
+const friendRequests = document.querySelector("[data-friend-requests]");
+const friendList = document.querySelector("[data-friend-list]");
+const currentRoomName = document.querySelector("[data-current-room-name]");
+const currentRoomKind = document.querySelector("[data-current-room-kind]");
+const currentRoomCode = document.querySelector("[data-current-room-code]");
 
+let client = null;
 let currentUser = null;
+let currentRoom = null;
 let chatChannel = null;
 let allMessages = [];
+let rooms = [];
+let roomLabels = new Map();
+let friendProfiles = [];
 let typingUsers = new Map();
 let typingTimeout = null;
 let lastTypingSentAt = 0;
@@ -29,7 +45,7 @@ let lastTypingSentAt = 0;
 function loadFreshAuthScript() {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `auth.js?v=20260619-social1-${Date.now()}`;
+    script.src = `auth.js?v=20260619-social2-${Date.now()}`;
     script.onload = resolve;
     script.onerror = reject;
     document.head.append(script);
@@ -66,8 +82,21 @@ function setChatEnabled(enabled) {
     return;
   }
 
-  form.querySelector("button[type='submit']").disabled = !enabled;
+  const submit = form.querySelector("button[type='submit']");
+
+  if (submit) {
+    submit.disabled = !enabled;
+  }
+
   input.disabled = !enabled;
+}
+
+function setBoxMessage(container, text) {
+  if (!container) {
+    return;
+  }
+
+  container.textContent = text;
 }
 
 function formatTime(value) {
@@ -79,6 +108,10 @@ function formatTime(value) {
 
 function escapeSearch(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeRoomName(value) {
+  return String(value || "").trim().slice(0, 40);
 }
 
 function avatarLetter(pseudo) {
@@ -94,6 +127,41 @@ function colorFromString(value) {
   }
 
   return colors[hash % colors.length];
+}
+
+function createStackedLabel(primaryText, secondaryText) {
+  const label = document.createElement("span");
+  const primary = document.createElement("strong");
+  const secondary = document.createElement("small");
+
+  primary.textContent = primaryText;
+  secondary.textContent = secondaryText;
+  label.append(primary, secondary);
+
+  return label;
+}
+
+function kindLabel(kind) {
+  const labels = {
+    public: "public",
+    private: "prive",
+    dm: "dm"
+  };
+
+  return labels[kind] || kind;
+}
+
+function roomDisplayName(room) {
+  if (!room) {
+    return "Salon";
+  }
+
+  return roomLabels.get(room.id) || room.name;
+}
+
+function schemaHelp(error) {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  return /room_id|chat_rooms|room_members|friend_requests|invite_code|column|schema|relationship/i.test(message);
 }
 
 function filteredMessages() {
@@ -198,6 +266,10 @@ function renderMessages() {
 }
 
 function upsertMessage(message) {
+  if (!currentRoom || message.room_id !== currentRoom.id) {
+    return;
+  }
+
   if (allMessages.some((candidate) => candidate.id === message.id)) {
     return;
   }
@@ -207,6 +279,224 @@ function upsertMessage(message) {
   });
 
   renderMessages();
+}
+
+function renderRooms() {
+  if (!roomList) {
+    return;
+  }
+
+  roomList.replaceChildren();
+
+  if (!rooms.length) {
+    const empty = document.createElement("button");
+    empty.type = "button";
+    empty.disabled = true;
+    empty.textContent = "Aucun salon";
+    roomList.append(empty);
+    return;
+  }
+
+  rooms.forEach((room) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "room-button";
+    button.dataset.active = currentRoom && room.id === currentRoom.id ? "true" : "false";
+    button.append(createStackedLabel(roomDisplayName(room), kindLabel(room.kind)));
+    button.addEventListener("click", () => selectRoom(room.id));
+    roomList.append(button);
+  });
+}
+
+function updateCurrentRoomHeader() {
+  if (!currentRoom || !currentRoomName || !currentRoomKind || !currentRoomCode) {
+    return;
+  }
+
+  currentRoomName.textContent = roomDisplayName(currentRoom);
+  currentRoomKind.textContent = kindLabel(currentRoom.kind);
+
+  if (currentRoom.kind === "private" && currentRoom.invite_code) {
+    currentRoomCode.hidden = false;
+    currentRoomCode.textContent = `code: ${currentRoom.invite_code}`;
+  } else {
+    currentRoomCode.hidden = true;
+    currentRoomCode.textContent = "";
+  }
+}
+
+async function loadRooms() {
+  const { data, error } = await client
+    .from("chat_rooms")
+    .select("id,name,kind,owner_id,invite_code,created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  rooms = data || [];
+
+  if (!rooms.some((room) => room.id === DEFAULT_ROOM_ID)) {
+    rooms.unshift({
+      id: DEFAULT_ROOM_ID,
+      name: "General",
+      kind: "public",
+      owner_id: null,
+      invite_code: "general"
+    });
+  }
+
+  await loadRoomLabels();
+
+  currentRoom = rooms.find((room) => currentRoom && room.id === currentRoom.id)
+    || rooms.find((room) => room.id === DEFAULT_ROOM_ID)
+    || rooms[0];
+
+  renderRooms();
+  updateCurrentRoomHeader();
+}
+
+async function loadRoomLabels() {
+  roomLabels = new Map();
+
+  const dmIds = rooms
+    .filter((room) => room.kind === "dm")
+    .map((room) => room.id);
+
+  if (!dmIds.length) {
+    return;
+  }
+
+  const { data: members, error } = await client
+    .from("room_members")
+    .select("room_id,user_id")
+    .in("room_id", dmIds)
+    .neq("user_id", currentUser.id);
+
+  if (error) {
+    throw error;
+  }
+
+  const userIds = [...new Set((members || []).map((member) => member.user_id))];
+
+  if (!userIds.length) {
+    return;
+  }
+
+  const { data: profiles, error: profileError } = await client
+    .from("profiles")
+    .select("id,pseudo")
+    .in("id", userIds);
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+
+  (members || []).forEach((member) => {
+    const profile = profilesById.get(member.user_id);
+
+    if (profile) {
+      roomLabels.set(member.room_id, `DM ${profile.pseudo}`);
+    }
+  });
+}
+
+async function loadMessages() {
+  const { data, error } = await client
+    .from("chat_messages")
+    .select("id,room_id,user_id,pseudo,content,created_at")
+    .eq("room_id", currentRoom.id)
+    .order("created_at", { ascending: false })
+    .limit(MESSAGE_LIMIT);
+
+  if (error) {
+    throw error;
+  }
+
+  allMessages = [...(data || [])].reverse();
+  renderMessages();
+}
+
+async function switchRealtimeChannel() {
+  if (chatChannel) {
+    await client.removeChannel(chatChannel);
+    chatChannel = null;
+  }
+
+  typingUsers = new Map();
+  renderTypingLine();
+
+  chatChannel = client.channel(`rip-room-${currentRoom.id}`, {
+    config: {
+      broadcast: { self: false },
+      presence: { key: currentUser.id }
+    }
+  });
+
+  chatChannel
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_messages",
+        filter: `room_id=eq.${currentRoom.id}`
+      },
+      (payload) => upsertMessage(payload.new)
+    )
+    .on("presence", { event: "sync" }, renderOnlineUsers)
+    .on("presence", { event: "join" }, renderOnlineUsers)
+    .on("presence", { event: "leave" }, renderOnlineUsers)
+    .on("broadcast", { event: "typing" }, ({ payload }) => {
+      typingUsers.set(payload.userId, payload);
+      renderTypingLine();
+    })
+    .subscribe(async (status) => {
+      if (status !== "SUBSCRIBED") {
+        return;
+      }
+
+      await chatChannel.track({
+        userId: currentUser.id,
+        pseudo: currentUser.pseudo,
+        title: currentUser.title,
+        status: currentUser.status,
+        avatarColor: currentUser.avatarColor,
+        roomId: currentRoom.id,
+        onlineAt: new Date().toISOString()
+      });
+
+      renderOnlineUsers();
+      startTypingCleaner();
+      setStatus(`En ligne : ${currentUser.pseudo}`, "success");
+    });
+}
+
+async function selectRoom(roomId) {
+  const room = rooms.find((candidate) => candidate.id === roomId);
+
+  if (!room) {
+    return;
+  }
+
+  currentRoom = room;
+  setStatus("Chargement du salon...", "");
+  setChatEnabled(false);
+  renderRooms();
+  updateCurrentRoomHeader();
+
+  try {
+    await loadMessages();
+    await switchRealtimeChannel();
+    setChatEnabled(true);
+    setStatus(`Salon : ${roomDisplayName(currentRoom)}`, "success");
+  } catch (error) {
+    console.error("Erreur salon:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Salon inaccessible", "error");
+  }
 }
 
 function renderOnlineUsers() {
@@ -273,19 +563,256 @@ function renderTypingLine() {
     : `${active.length} joueurs ecrivent...`;
 }
 
-async function loadMessages(client) {
+async function loadFriends() {
   const { data, error } = await client
-    .from("chat_messages")
-    .select("id,user_id,pseudo,content,created_at")
-    .order("created_at", { ascending: false })
-    .limit(MESSAGE_LIMIT);
+    .from("friend_requests")
+    .select("id,sender_id,receiver_id,status,created_at,updated_at")
+    .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+    .order("created_at", { ascending: false });
 
   if (error) {
+    if (schemaHelp(error)) {
+      setBoxMessage(friendList, "Relance le SQL pour activer les amis.");
+      return;
+    }
+
     throw error;
   }
 
-  allMessages = [...(data || [])].reverse();
-  renderMessages();
+  const accepted = (data || []).filter((request) => request.status === "accepted");
+  const incoming = (data || []).filter((request) => request.status === "pending" && request.receiver_id === currentUser.id);
+  const friendIds = [...new Set(
+    accepted.map((request) => request.sender_id === currentUser.id ? request.receiver_id : request.sender_id)
+  )];
+  const incomingIds = [...new Set(incoming.map((request) => request.sender_id))];
+  let incomingProfiles = new Map();
+
+  friendProfiles = [];
+
+  if (friendIds.length) {
+    const { data: profiles } = await client
+      .from("profiles")
+      .select("id,pseudo,title,status,avatar_color")
+      .in("id", friendIds);
+
+    friendProfiles = profiles || [];
+  }
+
+  if (incomingIds.length) {
+    const { data: profiles } = await client
+      .from("profiles")
+      .select("id,pseudo,title,status,avatar_color")
+      .in("id", incomingIds);
+
+    incomingProfiles = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  }
+
+  renderFriendRequests(incoming, incomingProfiles);
+  renderFriendList();
+}
+
+function renderFriendRequests(requests, profilesById = new Map()) {
+  if (!friendRequests) {
+    return;
+  }
+
+  friendRequests.replaceChildren();
+
+  if (!requests.length) {
+    friendRequests.textContent = "Aucune demande.";
+    return;
+  }
+
+  requests.forEach((request) => {
+    const profile = profilesById.get(request.sender_id);
+    const item = document.createElement("div");
+    item.className = "social-item";
+    item.append(createStackedLabel(
+      profile ? profile.pseudo : "Demande recue",
+      profile ? (profile.title || profile.status || "Veut t'ajouter") : "Veut t'ajouter"
+    ));
+
+    const accept = document.createElement("button");
+    accept.type = "button";
+    accept.textContent = "Accepter";
+    accept.addEventListener("click", () => answerFriendRequest(request.id, "accepted"));
+
+    const reject = document.createElement("button");
+    reject.type = "button";
+    reject.textContent = "Refuser";
+    reject.addEventListener("click", () => answerFriendRequest(request.id, "rejected"));
+
+    item.append(accept, reject);
+    friendRequests.append(item);
+  });
+}
+
+function renderFriendList() {
+  if (!friendList) {
+    return;
+  }
+
+  friendList.replaceChildren();
+
+  if (!friendProfiles.length) {
+    friendList.textContent = "Aucun ami.";
+    return;
+  }
+
+  friendProfiles.forEach((profile) => {
+    const item = document.createElement("div");
+    item.className = "social-item";
+
+    const label = createStackedLabel(profile.pseudo, profile.title || profile.status || "Ami");
+
+    const dm = document.createElement("button");
+    dm.type = "button";
+    dm.textContent = "DM";
+    dm.addEventListener("click", () => openDirectMessage(profile.id));
+
+    item.append(label, dm);
+    friendList.append(item);
+  });
+}
+
+function renderFriendSearchResults(profiles) {
+  if (!friendResults) {
+    return;
+  }
+
+  friendResults.replaceChildren();
+
+  if (!profiles.length) {
+    friendResults.textContent = "Aucun joueur trouve.";
+    return;
+  }
+
+  profiles.forEach((profile) => {
+    const item = document.createElement("div");
+    item.className = "social-item";
+
+    const label = createStackedLabel(profile.pseudo, profile.title || profile.status || "Joueur");
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.textContent = "Ajouter";
+    add.addEventListener("click", () => sendFriendRequest(profile.id));
+
+    item.append(label, add);
+    friendResults.append(item);
+  });
+}
+
+async function answerFriendRequest(id, status) {
+  const { error } = await client
+    .from("friend_requests")
+    .update({
+      status,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id);
+
+  if (error) {
+    setStatus("Action ami impossible", "error");
+    return;
+  }
+
+  setStatus(status === "accepted" ? "Ami ajoute" : "Demande refusee", "success");
+  await loadFriends();
+}
+
+async function sendFriendRequest(receiverId) {
+  const { error } = await client
+    .from("friend_requests")
+    .insert({
+      sender_id: currentUser.id,
+      receiver_id: receiverId
+    });
+
+  if (error) {
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Demande deja envoyee", "error");
+    return;
+  }
+
+  setStatus("Demande envoyee", "success");
+  setBoxMessage(friendResults, "Demande envoyee.");
+  await loadFriends();
+}
+
+async function openDirectMessage(friendId) {
+  const { data, error } = await client.rpc("create_or_get_dm", {
+    friend_id: friendId
+  });
+
+  if (error) {
+    console.error("Erreur DM:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "DM impossible", "error");
+    return;
+  }
+
+  await loadRooms();
+  await selectRoom(data);
+}
+
+async function createRoom(name, kind) {
+  const roomName = normalizeRoomName(name);
+
+  if (roomName.length < 2) {
+    setStatus("Nom de salon trop court", "error");
+    return;
+  }
+
+  const { data, error } = await client
+    .from("chat_rooms")
+    .insert({
+      name: roomName,
+      kind,
+      owner_id: currentUser.id
+    })
+    .select("id,name,kind,owner_id,invite_code,created_at")
+    .single();
+
+  if (error) {
+    console.error("Erreur creation salon:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Creation impossible", "error");
+    return;
+  }
+
+  const { error: memberError } = await client
+    .from("room_members")
+    .insert({
+      room_id: data.id,
+      user_id: currentUser.id,
+      role: "owner"
+    });
+
+  if (memberError) {
+    console.error("Erreur membre salon:", memberError);
+  }
+
+  await loadRooms();
+  await selectRoom(data.id);
+}
+
+async function joinRoom(code) {
+  const cleanCode = String(code || "").trim().toLowerCase();
+
+  if (!cleanCode) {
+    return;
+  }
+
+  const { data, error } = await client.rpc("join_room_by_code", {
+    room_code: cleanCode
+  });
+
+  if (error) {
+    console.error("Erreur rejoindre salon:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Code invalide", "error");
+    return;
+  }
+
+  await loadRooms();
+  await selectRoom(data);
 }
 
 function bindLocalControls() {
@@ -306,6 +833,51 @@ function bindLocalControls() {
       }
 
       renderMessages();
+    });
+  }
+
+  if (createRoomForm) {
+    createRoomForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(createRoomForm));
+      await createRoom(data.name, data.kind);
+      createRoomForm.reset();
+    });
+  }
+
+  if (joinRoomForm) {
+    joinRoomForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(joinRoomForm));
+      await joinRoom(data.code);
+      joinRoomForm.reset();
+    });
+  }
+
+  if (findFriendForm) {
+    findFriendForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(findFriendForm));
+      const query = String(data.query || "").trim();
+
+      if (query.length < 2) {
+        setBoxMessage(friendResults, "Tape au moins 2 caracteres.");
+        return;
+      }
+
+      const { data: profiles, error } = await client
+        .from("profiles")
+        .select("id,pseudo,title,status,avatar_color")
+        .ilike("pseudo", `%${query}%`)
+        .neq("id", currentUser.id)
+        .limit(8);
+
+      if (error) {
+        setBoxMessage(friendResults, "Recherche impossible.");
+        return;
+      }
+
+      renderFriendSearchResults(profiles || []);
     });
   }
 
@@ -394,68 +966,29 @@ async function startChat() {
     return;
   }
 
-  const client = await window.RipSupabase.getClient();
-
+  client = await window.RipSupabase.getClient();
   setStatus("Connexion au salon...", "");
   setChatEnabled(false);
 
   try {
-    await loadMessages(client);
+    await loadRooms();
     bindLocalControls();
-    setChatEnabled(true);
-    setStatus(`Connecte : ${currentUser.pseudo}`, "success");
+    await loadFriends();
+    await selectRoom(currentRoom.id);
   } catch (error) {
-    console.error("Erreur Supabase:", error);
-    setStatus("Erreur de chargement", "error");
+    console.error("Erreur initialisation tchat:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Erreur tchat", "error");
     setChatEnabled(false);
-    return;
   }
+}
 
-  chatChannel = client.channel("rip-chat-room", {
-    config: {
-      broadcast: { self: false },
-      presence: { key: currentUser.id }
-    }
-  });
-
-  chatChannel
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "chat_messages"
-      },
-      (payload) => upsertMessage(payload.new)
-    )
-    .on("presence", { event: "sync" }, renderOnlineUsers)
-    .on("presence", { event: "join" }, renderOnlineUsers)
-    .on("presence", { event: "leave" }, renderOnlineUsers)
-    .on("broadcast", { event: "typing" }, ({ payload }) => {
-      typingUsers.set(payload.userId, payload);
-      renderTypingLine();
-    })
-    .subscribe(async (status) => {
-      if (status !== "SUBSCRIBED") {
-        return;
-      }
-
-      await chatChannel.track({
-        userId: currentUser.id,
-        pseudo: currentUser.pseudo,
-        title: currentUser.title,
-        status: currentUser.status,
-        avatarColor: currentUser.avatarColor,
-        onlineAt: new Date().toISOString()
-      });
-
-      renderOnlineUsers();
-      startTypingCleaner();
-      setStatus(`En ligne : ${currentUser.pseudo}`, "success");
-    });
-
+if (form) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+
+    if (!currentRoom) {
+      return;
+    }
 
     const content = input.value.trim();
 
@@ -471,6 +1004,7 @@ async function startChat() {
     setChatEnabled(false);
 
     const { error } = await client.from("chat_messages").insert({
+      room_id: currentRoom.id,
       user_id: currentUser.id,
       pseudo: currentUser.pseudo,
       content
@@ -478,14 +1012,14 @@ async function startChat() {
 
     if (error) {
       console.error("Erreur envoi:", error);
-      setStatus("Envoi impossible", "error");
+      setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Envoi impossible", "error");
       setChatEnabled(true);
       return;
     }
 
     input.value = "";
     syncCharCount();
-    setStatus(`En ligne : ${currentUser.pseudo}`, "success");
+    setStatus(`Salon : ${roomDisplayName(currentRoom)}`, "success");
     setChatEnabled(true);
     input.focus();
   });
