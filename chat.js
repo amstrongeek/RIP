@@ -8,6 +8,32 @@ const messagesElement = document.querySelector("[data-chat-messages]");
 const form = document.querySelector("[data-chat-form]");
 const input = document.querySelector("#chat-message");
 
+function loadFreshAuthScript() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `auth.js?v=20260619-auth2-${Date.now()}`;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.append(script);
+  });
+}
+
+async function ensureFreshAuth() {
+  if (window.RipAuth && typeof window.RipAuth.ready === "function") {
+    return true;
+  }
+
+  setStatus("Mise a jour auth...", "");
+
+  try {
+    await loadFreshAuthScript();
+  } catch (error) {
+    console.error("Auth cache reload failed:", error);
+  }
+
+  return Boolean(window.RipAuth && typeof window.RipAuth.ready === "function");
+}
+
 function setStatus(text, type = "") {
   if (!statusElement) {
     return;
@@ -110,8 +136,10 @@ async function startChat() {
     return;
   }
 
-  if (!window.RipAuth) {
-    setStatus("Auth introuvable", "error");
+  const hasFreshAuth = await ensureFreshAuth();
+
+  if (!hasFreshAuth) {
+    setStatus("Auth a mettre a jour", "error");
     setChatEnabled(false);
     return;
   }
