@@ -1,4 +1,4 @@
-const ARCADE_VERSION = "20260624-arcade2";
+const ARCADE_VERSION = "20260625-platform1";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
@@ -31,6 +31,7 @@ let duelPoll = null;
 let tttPoll = null;
 let duelDoneSeen = false;
 let tttDoneSeen = false;
+let arcadeLaunchersBound = false;
 
 function onReady(callback) {
   if (document.readyState === "loading") {
@@ -1201,6 +1202,24 @@ function startGame(gameKey) {
   }
 }
 
+
+function bindArcadeLaunchers() {
+  if (arcadeLaunchersBound) {
+    return;
+  }
+
+  arcadeLaunchersBound = true;
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-open-game]");
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    startGame(button.getAttribute("data-open-game"));
+  });
+}
 async function initArcade() {
   if (!window.RipSupabase || !window.RipSupabase.isConfigured() || !window.RipAuth) {
     setArcadeStatus("Supabase requis pour les points.", true);
@@ -1217,10 +1236,7 @@ async function initArcade() {
 
   applyProfileCosmetics(arcadeUser);
   arcadeClient = await window.RipSupabase.getClient();
-
-  document.querySelectorAll("[data-open-game]").forEach((button) => {
-    button.addEventListener("click", () => startGame(button.getAttribute("data-open-game")));
-  });
+  bindArcadeLaunchers();
 
   closeButtons.forEach((button) => {
     button.addEventListener("click", closeArcade);

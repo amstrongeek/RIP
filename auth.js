@@ -529,6 +529,7 @@
     logout,
     passwordScore,
     ready,
+    refresh,
     register,
     stats,
     uploadAvatar,

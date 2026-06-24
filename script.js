@@ -255,7 +255,7 @@ function bindLoginForm() {
       await window.RipAuth.login(data.email, data.password);
       setMessage(message, "Connexion reussie. Redirection...", "success");
       setTimeout(() => {
-        window.location.href = "index.html";
+        window.location.href = "dashboard.html";
       }, 650);
     } catch (error) {
       console.error("Erreur connexion:", error);

@@ -1,6 +1,6 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes, profils, avatars, salons, amis, DM, tchat, points, boutique et mini-jeux, missions, equipements et morpion multi est deja dans le site.
+Le code des comptes, profils, avatars, salons, amis, DM, tchat, dashboard, arcade, boutique, classements, points et mini-jeux, missions, equipements et morpion multi est deja dans le site.
 Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
@@ -72,7 +72,7 @@ Ne colle pas une URL qui finit par `/rest/v1/`.
 & "C:\Program Files\Git\cmd\git.exe" -C E:\RIP push
 ```
 
-Ensuite, ouvre `index.html` sur ton site GitHub Pages. La page d'accueil est maintenant le tchat principal.
+Ensuite, ouvre `dashboard.html` sur ton site GitHub Pages pour la plateforme, ou `index.html` pour le tchat principal.
 
 ## Apres une mise a jour du site
 
@@ -81,7 +81,7 @@ Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplem
 
 Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
 `chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style`,
-`user_wallets`, `shop_items`, `game_scores`, `game_duels` ou `avatars`.
+`user_wallets`, `shop_items`, `game_scores`, `game_duels`, `user_missions`, `tic_tac_toe_games` ou `avatars`.
 
 Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 
@@ -95,7 +95,8 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - presence en ligne par salon
 - indicateur quand quelqu'un ecrit
 - recherche dans le salon actif
-- page d'accueil transformee en app de tchat
+- dashboard separe, arcade separee, boutique separee et classements separes
+- page tchat conservee sur `index.html`
 - photos de profil via Supabase Storage
 - pseudos en couleur simple, degrade deux couleurs ou arc-en-ciel
 - carte profil publique au clic sur un joueur
@@ -104,7 +105,8 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - pack 40 features : themes, focus mode, colonnes masquables, export texte, refresh, pause live, sons, favoris, non-lus, brouillons, slash commands et raccourcis
 - points automatiques quand tu chat, daily reward, niveaux et XP
 - boutique avec achats en RIP coins et inventaire
-- mini-jeux, missions, equipements et morpion multi solo : Reflex Blitz, Memory Grid, Neon Runner
+- mini-jeux solo : Reflex Blitz, Memory Grid, Neon Runner, Aim Trainer, Code Breaker
+- missions, equipements cosmetiques et morpion multi
 - mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
 - leaderboards Supabase par mini-jeu
 
