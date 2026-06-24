@@ -1,4 +1,4 @@
-const ARCADE_VERSION = "20260625-chatplus1";
+const ARCADE_VERSION = "20260625-coreui1";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
@@ -43,12 +43,10 @@ function onReady(callback) {
 }
 
 function setArcadeStatus(text, isError = false) {
-  if (!arcadeStatus) {
-    return;
-  }
-
-  arcadeStatus.textContent = text;
-  arcadeStatus.dataset.state = isError ? "error" : "ok";
+  document.querySelectorAll("[data-arcade-status]").forEach((element) => {
+    element.textContent = text;
+    element.dataset.state = isError ? "error" : "ok";
+  });
 }
 
 function setArcadeScore(value) {
@@ -137,7 +135,7 @@ function sleep(ms) {
 
 function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /user_wallets|shop_items|user_inventory|game_scores|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|wallet/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|policy|column|wallet/i.test(message);
 }
 
 function xpForLevel(level) {
@@ -156,10 +154,21 @@ function renderWallet(wallet) {
   const next = xpForLevel(level + 1);
   const progress = Math.max(0, Math.min(100, ((xp - start) / Math.max(1, next - start)) * 100));
 
-  walletPoints.textContent = String(wallet.points || 0);
-  walletLevel.textContent = String(level);
-  walletXp.textContent = String(xp);
-  walletStreak.textContent = String(wallet.streak || 0);
+  if (walletPoints) {
+    walletPoints.textContent = String(wallet.points || 0);
+  }
+
+  if (walletLevel) {
+    walletLevel.textContent = String(level);
+  }
+
+  if (walletXp) {
+    walletXp.textContent = String(xp);
+  }
+
+  if (walletStreak) {
+    walletStreak.textContent = String(wallet.streak || 0);
+  }
 
   if (walletProgress) {
     walletProgress.style.width = `${progress}%`;
@@ -182,6 +191,10 @@ async function loadWallet() {
 }
 
 async function loadShop() {
+  if (!shopList && !inventoryList) {
+    return;
+  }
+
   const [{ data: items, error: itemError }, { data: inventory, error: inventoryError }] = await Promise.all([
     arcadeClient
       .from("shop_items")
@@ -202,6 +215,10 @@ async function loadShop() {
 }
 
 function renderShop(items, inventory) {
+  if (!shopList) {
+    return;
+  }
+
   shopList.replaceChildren();
 
   if (!items.length) {
@@ -230,6 +247,10 @@ function canEquip(item) {
 }
 
 function renderInventory(items, inventory) {
+  if (!inventoryList) {
+    return;
+  }
+
   inventoryList.replaceChildren();
 
   if (!inventory.length) {
@@ -334,6 +355,11 @@ async function equipItem(itemKey) {
 }
 
 async function claimDaily() {
+  if (!arcadeClient || !arcadeUser) {
+    setArcadeStatus("Connecte-toi pour claim le daily.", true);
+    return;
+  }
+
   try {
     dailyButton.disabled = true;
     setArcadeStatus("Claim daily...");
@@ -426,6 +452,10 @@ async function claimMission(missionKey) {
 }
 
 async function loadLeaderboard(gameKey = "reflex") {
+  if (!leaderboardList) {
+    return;
+  }
+
   const { data, error } = await arcadeClient
     .from("game_scores")
     .select("user_id,game_key,score,reward_points,created_at")
@@ -468,7 +498,7 @@ async function loadLeaderboard(gameKey = "reflex") {
 }
 
 async function awardSoloGame(gameKey, score) {
-  if (!SOLO_GAMES.has(gameKey)) {
+  if (!SOLO_GAMES.has(gameKey) || !arcadeClient || !arcadeUser) {
     return;
   }
 
@@ -1201,6 +1231,8 @@ function startGame(gameKey) {
     startDuelGame();
   } else if (gameKey === "ttt") {
     startTttGame();
+  } else {
+    setArcadeStatus("Jeu indisponible pour le moment.", true);
   }
 }
 
@@ -1223,6 +1255,16 @@ function bindArcadeLaunchers() {
   });
 }
 async function initArcade() {
+  bindArcadeLaunchers();
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", closeArcade);
+  });
+
+  if (dailyButton) {
+    dailyButton.addEventListener("click", claimDaily);
+  }
+
   if (!window.RipSupabase || !window.RipSupabase.isConfigured() || !window.RipAuth) {
     setArcadeStatus("Supabase requis pour les points.", true);
     return;
@@ -1238,15 +1280,6 @@ async function initArcade() {
 
   applyProfileCosmetics(arcadeUser);
   arcadeClient = await window.RipSupabase.getClient();
-  bindArcadeLaunchers();
-
-  closeButtons.forEach((button) => {
-    button.addEventListener("click", closeArcade);
-  });
-
-  if (dailyButton) {
-    dailyButton.addEventListener("click", claimDaily);
-  }
 
   if (leaderboardGame) {
     leaderboardGame.addEventListener("change", () => loadLeaderboard(leaderboardGame.value).catch(() => null));

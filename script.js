@@ -122,6 +122,7 @@ function applyProfile(user) {
     return;
   }
 
+  document.body.dataset.profileTheme = user.profileTheme || "default";
   document.querySelectorAll("[data-profile-avatar]").forEach((element) => setAvatar(element, user));
 
   document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
@@ -364,6 +365,7 @@ function bindProfileForm() {
 
       const user = await window.RipAuth.updateProfile(data);
       applyProfile(user);
+      document.dispatchEvent(new CustomEvent("rip-profile-saved", { detail: user }));
       if (avatarInput) {
         avatarInput.value = "";
       }

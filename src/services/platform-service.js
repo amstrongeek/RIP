@@ -223,5 +223,5 @@ export async function getMessageStats(client, userId) {
 
 export function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /user_wallets|shop_items|user_inventory|game_scores|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission|column|policy/i.test(message);
 }

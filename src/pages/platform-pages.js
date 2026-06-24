@@ -22,6 +22,35 @@ const state = {
   context: null
 };
 
+function ensureGateBox(selector, title, body, actionHref, actionLabel) {
+  let box = document.querySelector(selector);
+
+  if (box) {
+    return box;
+  }
+
+  const shell = document.querySelector(".platform-shell");
+  const hero = document.querySelector(".platform-hero");
+
+  if (!shell || !hero) {
+    return null;
+  }
+
+  box = createElement("div", "setup-box");
+  box.hidden = true;
+  box.setAttribute(selector.slice(1, -1), "");
+  box.append(createElement("strong", "", title), createElement("p", "", body));
+
+  if (actionHref && actionLabel) {
+    const action = createElement("a", "button primary", actionLabel);
+    action.href = actionHref;
+    box.append(action);
+  }
+
+  shell.insertBefore(box, hero);
+  return box;
+}
+
 function text(selector, value) {
   document.querySelectorAll(selector).forEach((element) => {
     element.textContent = value;
@@ -101,6 +130,15 @@ function renderProfile(user) {
   text("[data-platform-name]", user.pseudo || "Player");
   text("[data-platform-title]", user.title || "Nouveau joueur");
   text("[data-platform-status-text]", user.status || "En ligne");
+  document.body.dataset.profileTheme = user.profileTheme || user.profile_theme || "default";
+
+  document.querySelectorAll("[data-platform-name]").forEach((element) => {
+    element.classList.add("display-name");
+    element.dataset.nameStyle = user.nameStyle || user.name_style || "solid";
+    element.style.setProperty("--name-color-a", user.nameColorA || user.name_color_a || "#39ff88");
+    element.style.setProperty("--name-color-b", user.nameColorB || user.name_color_b || "#ffdc5e");
+  });
+
   document.querySelectorAll("[data-platform-avatar]").forEach((element) => renderAvatar(element, user));
 }
 
@@ -413,7 +451,19 @@ function renderLeaderboardRows(rows) {
 }
 
 async function requirePlatform() {
-  state.context = await getPlatformContext();
+  ensureGateBox("[data-platform-setup]", "Configuration Supabase manquante", "Ajoute ton URL et ta cle publique dans supabase-config.js, puis relance le SQL Supabase si une table manque.");
+  ensureGateBox("[data-platform-login]", "Connexion requise", "Connecte-toi pour synchroniser ton profil, tes points, ton inventaire, tes scores et le tchat.", "connexion.html", "Se connecter");
+
+  try {
+    state.context = await getPlatformContext();
+  } catch (error) {
+    console.error("Platform context error:", error);
+    show("[data-platform-setup]", false);
+    show("[data-platform-login]", false);
+    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Session Supabase indisponible.", true);
+    return null;
+  }
+
   const { configured, user } = state.context;
 
   if (!configured) {

@@ -2454,3 +2454,213 @@ body[data-profile-theme="gold"] {
   max-height: 100% !important;
   object-fit: cover;
 }
+
+/* core-ui-guard: shared stability layer for platform pages. */
+.site-header,
+.platform-shell,
+.chat-shell,
+.profile-shell,
+.platform-panel,
+.chat-panel,
+.profile-card,
+.game-card,
+.shop-item,
+.inventory-item,
+.achievement-card,
+.notification-card,
+.leaderboard-row,
+.chat-message {
+  min-width: 0;
+}
+
+.setup-box {
+  border: 4px solid var(--black);
+  box-shadow: 4px 4px 0 var(--black);
+}
+
+.setup-box .button {
+  width: fit-content;
+  margin-top: 4px;
+}
+
+.button:disabled,
+.game-button:disabled,
+.feature-grid button:disabled,
+.quick-actions button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+  opacity: 0.58;
+}
+
+.platform-panel,
+.chat-panel,
+.profile-card {
+  overflow-wrap: anywhere;
+}
+
+.game-card,
+.achievement-card,
+.notification-card,
+.shop-item,
+.inventory-item,
+.leaderboard-row,
+.mission-card,
+.mission-item {
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.game-card:hover,
+.achievement-card:hover,
+.notification-card:hover,
+.shop-item:hover,
+.inventory-item:hover,
+.leaderboard-row:hover,
+.mission-card:hover,
+.mission-item:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--black);
+}
+
+.chat-message-meta,
+.message-actions,
+.chat-submit-panel,
+.quick-actions,
+.platform-actions,
+.section-title-row,
+.filter-tabs {
+  min-width: 0;
+}
+
+.chat-message-meta > *,
+.message-actions > *,
+.quick-actions > *,
+.filter-tabs > * {
+  min-width: 0;
+}
+
+.arcade-stage {
+  overflow: auto;
+}
+
+.arcade-window,
+.profile-modal-card {
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+@media (max-width: 980px) {
+  .site-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .nav {
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .nav a {
+    white-space: nowrap;
+  }
+
+  .discord-layout,
+  body.hide-left-sidebar .discord-layout,
+  body.hide-right-sidebar .discord-layout,
+  body.hide-left-sidebar.hide-right-sidebar .discord-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar,
+  .member-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chat-messages {
+    height: 48vh;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    line-height: 1.7;
+  }
+
+  .site-header {
+    position: static;
+    padding: 14px;
+  }
+
+  .platform-page,
+  .app-page,
+  .profile-page {
+    padding: 14px;
+  }
+
+  .platform-hero,
+  .profile-hero,
+  .chat-heading {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .hero-avatar,
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    font-size: 1rem;
+  }
+
+  .chat-sidebar,
+  .member-sidebar,
+  .chat-tools,
+  .chat-form,
+  .chat-submit-panel,
+  .quick-actions,
+  .cipher-form {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-message {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .message-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .message-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .message-copy,
+  .reaction-pill {
+    flex: 1 1 auto;
+  }
+
+  .chat-form .button,
+  .chat-form button,
+  .quick-actions button,
+  .setup-box .button {
+    width: 100%;
+  }
+
+  .arcade-window,
+  .profile-modal-card {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .aim-board {
+    min-height: 300px;
+  }
+
+  .ttt-grid {
+    grid-template-columns: repeat(3, minmax(54px, 1fr));
+  }
+}
