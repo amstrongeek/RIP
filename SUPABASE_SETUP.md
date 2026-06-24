@@ -30,6 +30,8 @@ Le script cree :
 - `room_members` pour savoir qui a acces a chaque salon
 - `friend_requests` pour les demandes d'amis
 - `chat_messages` pour les messages par salon
+- `message_reactions` pour les reactions emoji
+- `message_reports` pour les signalements
 - `user_wallets` pour les points, XP, niveaux et daily reward
 - `point_ledger` pour l'historique des gains/depenses
 - `shop_items` et `user_inventory` pour la boutique et l'inventaire
@@ -83,7 +85,7 @@ Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplem
 
 Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
 `chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style`,
-`user_wallets`, `shop_items`, `game_scores`, `game_duels`, `user_missions`, `user_achievements`, `user_notifications`, `tic_tac_toe_games` ou `avatars`.
+`user_wallets`, `shop_items`, `game_scores`, `game_duels`, `user_missions`, `user_achievements`, `user_notifications`, `message_reactions`, `message_reports`, `tic_tac_toe_games` ou `avatars`.
 
 Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 
@@ -110,6 +112,7 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - mini-jeux solo : Reflex Blitz, Memory Grid, Neon Runner, Aim Trainer, Code Breaker
 - succes permanents avec rewards points/XP
 - centre de notifications avec marquage lu
+- tchat avance : replies, markdown simple, reactions, signalements et mute local
 - missions, equipements cosmetiques et morpion multi
 - mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
 - leaderboards Supabase par mini-jeu

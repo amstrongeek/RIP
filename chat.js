@@ -3,7 +3,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,last_seen";
-const APP_VERSION = "20260625-achievements1";
+const APP_VERSION = "20260625-chatplus1";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -20,6 +20,9 @@ const messageCount = document.querySelector("[data-message-count]");
 const resultCount = document.querySelector("[data-result-count]");
 const typingLine = document.querySelector("[data-typing-line]");
 const charCount = document.querySelector("[data-char-count]");
+const replyPreview = document.querySelector("[data-reply-preview]");
+const replyLabel = document.querySelector("[data-reply-label]");
+const replyCancelButton = document.querySelector("[data-reply-cancel]");
 const autoscrollInput = document.querySelector("[data-autoscroll]");
 const compactInput = document.querySelector("[data-compact-chat]");
 const clearViewButton = document.querySelector("[data-clear-chat-view]");
@@ -82,6 +85,8 @@ let queuedMessages = [];
 let isPaused = false;
 let currentTheme = "default";
 let controlsBound = false;
+let activeReplyMessage = null;
+let mutedUsers = new Set();
 
 function loadFreshAuthScript() {
   return new Promise((resolve, reject) => {
@@ -223,6 +228,7 @@ function applyTheme(theme) {
 function loadPreferences() {
   applyTheme(readStorage("theme", "default"));
   favoriteRooms = new Set(readStorageJson("favorites", []));
+  mutedUsers = new Set(readStorageJson("mutedUsers", []));
 
   if (soundAlertInput) {
     soundAlertInput.checked = readStorage("sound") === "1";
@@ -350,25 +356,89 @@ function sameDay(a, b) {
 }
 
 function appendLinkedText(container, text) {
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  appendMarkdownText(container, text);
+}
+function saveMutedUsers() {
+  writeStorageJson("mutedUsers", [...mutedUsers]);
+}
+
+function messageById(messageId) {
+  return allMessages.find((message) => String(message.id) === String(messageId)) || null;
+}
+
+function setReplyTarget(message) {
+  activeReplyMessage = message || null;
+
+  if (!replyPreview || !replyLabel) {
+    return;
+  }
+
+  if (!activeReplyMessage) {
+    replyPreview.hidden = true;
+    replyLabel.textContent = "Reponse";
+    return;
+  }
+
+  replyPreview.hidden = false;
+  replyLabel.textContent = `Reponse a ${activeReplyMessage.pseudo}: ${activeReplyMessage.content.slice(0, 80)}`;
+  input.focus();
+}
+
+function toggleMuteUser(userId, pseudo) {
+  const key = String(userId || "");
+
+  if (!key) {
+    return;
+  }
+
+  if (mutedUsers.has(key)) {
+    mutedUsers.delete(key);
+    setFeatureStatus(`${pseudo || "Joueur"} demute localement.`);
+  } else {
+    mutedUsers.add(key);
+    setFeatureStatus(`${pseudo || "Joueur"} mute localement.`);
+  }
+
+  saveMutedUsers();
+  renderMessages();
+}
+
+function appendMarkdownText(container, text) {
+  const pattern = /(https?:\/\/[^\s]+)|(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*)/g;
   let lastIndex = 0;
-  let match = urlPattern.exec(text);
+  let match = pattern.exec(text);
 
   while (match) {
     if (match.index > lastIndex) {
       container.append(document.createTextNode(text.slice(lastIndex, match.index)));
     }
 
-    const link = document.createElement("a");
-    link.className = "message-link";
-    link.href = match[0];
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.textContent = match[0];
-    container.append(link);
+    const token = match[0];
 
-    lastIndex = match.index + match[0].length;
-    match = urlPattern.exec(text);
+    if (token.startsWith("http")) {
+      const link = document.createElement("a");
+      link.className = "message-link";
+      link.href = token;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = token;
+      container.append(link);
+    } else if (token.startsWith("`")) {
+      const code = document.createElement("code");
+      code.textContent = token.slice(1, -1);
+      container.append(code);
+    } else if (token.startsWith("**")) {
+      const strong = document.createElement("strong");
+      strong.textContent = token.slice(2, -2);
+      container.append(strong);
+    } else if (token.startsWith("*")) {
+      const em = document.createElement("em");
+      em.textContent = token.slice(1, -1);
+      container.append(em);
+    }
+
+    lastIndex = match.index + token.length;
+    match = pattern.exec(text);
   }
 
   if (lastIndex < text.length) {
@@ -376,6 +446,131 @@ function appendLinkedText(container, text) {
   }
 }
 
+function reactionSummary(message) {
+  const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+  const grouped = new Map();
+
+  reactions.forEach((reaction) => {
+    const emoji = reaction.emoji || reaction.reaction || "";
+
+    if (!emoji) {
+      return;
+    }
+
+    if (!grouped.has(emoji)) {
+      grouped.set(emoji, {
+        count: 0,
+        mine: false
+      });
+    }
+
+    const entry = grouped.get(emoji);
+    entry.count += 1;
+    entry.mine = entry.mine || Boolean(currentUser && reaction.user_id === currentUser.id);
+  });
+
+  return grouped;
+}
+
+async function loadMessageExtras(messages) {
+  const ids = (messages || []).map((message) => message.id).filter(Boolean);
+
+  if (!ids.length) {
+    return;
+  }
+
+  try {
+    const { data, error } = await client
+      .from("message_reactions")
+      .select("message_id,user_id,emoji,created_at")
+      .in("message_id", ids);
+
+    if (error) {
+      throw error;
+    }
+
+    const byMessage = new Map();
+    (data || []).forEach((reaction) => {
+      const key = String(reaction.message_id);
+      if (!byMessage.has(key)) {
+        byMessage.set(key, []);
+      }
+      byMessage.get(key).push(reaction);
+    });
+
+    messages.forEach((message) => {
+      message.reactions = byMessage.get(String(message.id)) || [];
+    });
+  } catch (error) {
+    console.warn("Reactions indisponibles:", error);
+  }
+}
+
+async function toggleReaction(message, emoji) {
+  if (!message || !currentUser) {
+    return;
+  }
+
+  try {
+    const existing = (message.reactions || []).find((reaction) => reaction.user_id === currentUser.id && reaction.emoji === emoji);
+
+    if (existing) {
+      const { error } = await client
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", message.id)
+        .eq("user_id", currentUser.id)
+        .eq("emoji", emoji);
+
+      if (error) {
+        throw error;
+      }
+    } else {
+      const { error } = await client
+        .from("message_reactions")
+        .insert({
+          message_id: message.id,
+          user_id: currentUser.id,
+          emoji
+        });
+
+      if (error) {
+        throw error;
+      }
+    }
+
+    await loadMessageExtras(allMessages);
+    renderMessages();
+  } catch (error) {
+    console.error("Erreur reaction:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Reaction impossible", "error");
+  }
+}
+
+async function reportMessage(message) {
+  if (!message || !currentUser) {
+    return;
+  }
+
+  try {
+    const { error } = await client
+      .from("message_reports")
+      .insert({
+        message_id: message.id,
+        reporter_id: currentUser.id,
+        reason: "Signalement utilisateur"
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    setFeatureStatus("Message signale.");
+  } catch (error) {
+    console.error("Erreur signalement:", error);
+    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Signalement impossible", "error");
+  }
+}
 function draftKey(roomId) {
   return `draft:${roomId || "none"}`;
 }
@@ -419,7 +614,7 @@ function roomDisplayName(room) {
 
 function schemaHelp(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /room_id|chat_rooms|room_members|friend_requests|invite_code|avatar_url|name_style|name_color|storage|bucket|column|schema|relationship/i.test(message);
+  return /room_id|chat_rooms|room_members|friend_requests|invite_code|avatar_url|name_style|name_color|message_reactions|message_reports|reply_to_id|storage|bucket|column|schema|relationship/i.test(message);
 }
 
 async function loadProfiles(userIds) {
@@ -571,12 +766,13 @@ async function openProfile(userId) {
 
 function filteredMessages() {
   const query = escapeSearch(searchInput && searchInput.value);
+  const visible = allMessages.filter((message) => !mutedUsers.has(String(message.user_id)));
 
   if (!query) {
-    return allMessages;
+    return visible;
   }
 
-  return allMessages.filter((message) => {
+  return visible.filter((message) => {
     return `${message.pseudo} ${message.content}`.toLowerCase().includes(query);
   });
 }
@@ -671,6 +867,34 @@ function createMessageElement(message) {
   const actions = document.createElement("span");
   actions.className = "message-actions";
 
+  const replyButton = document.createElement("button");
+  replyButton.className = "message-copy";
+  replyButton.type = "button";
+  replyButton.textContent = "Repondre";
+  replyButton.addEventListener("click", () => setReplyTarget(message));
+  actions.append(replyButton);
+
+  const reactButton = document.createElement("button");
+  reactButton.className = "message-copy";
+  reactButton.type = "button";
+  reactButton.textContent = "GG";
+  reactButton.addEventListener("click", () => toggleReaction(message, "GG"));
+  actions.append(reactButton);
+
+  const reportButton = document.createElement("button");
+  reportButton.className = "message-copy";
+  reportButton.type = "button";
+  reportButton.textContent = "Signaler";
+  reportButton.addEventListener("click", () => reportMessage(message));
+  actions.append(reportButton);
+
+  const muteButton = document.createElement("button");
+  muteButton.className = "message-copy";
+  muteButton.type = "button";
+  muteButton.textContent = mutedUsers.has(String(message.user_id)) ? "Demute" : "Mute";
+  muteButton.addEventListener("click", () => toggleMuteUser(message.user_id, pseudoText));
+  actions.append(muteButton);
+
   const copyButton = document.createElement("button");
   copyButton.className = "message-copy";
   copyButton.type = "button";
@@ -716,8 +940,39 @@ function createMessageElement(message) {
   const content = document.createElement("p");
   appendLinkedText(content, message.content);
 
+  const replyTo = message.reply_to_id ? messageById(message.reply_to_id) : null;
+  if (replyTo) {
+    const reply = document.createElement("button");
+    reply.type = "button";
+    reply.className = "message-reply-context";
+    reply.textContent = `Reponse a ${replyTo.pseudo}: ${replyTo.content.slice(0, 90)}`;
+    reply.addEventListener("click", () => {
+      const target = messagesElement.querySelector(`[data-message-id="${replyTo.id}"]`);
+      if (target) {
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+        target.classList.add("is-mentioned");
+        window.setTimeout(() => target.classList.remove("is-mentioned"), 1300);
+      }
+    });
+    body.append(reply);
+  }
+
+  const reactionBar = document.createElement("div");
+  reactionBar.className = "reaction-bar";
+  const reactions = reactionSummary(message);
+  ["GG", "+1", "OK", "RIP"].forEach((emoji) => {
+    const summary = reactions.get(emoji);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "reaction-pill";
+    button.dataset.active = summary && summary.mine ? "true" : "false";
+    button.textContent = `${emoji}${summary ? ` ${summary.count}` : ""}`;
+    button.addEventListener("click", () => toggleReaction(message, emoji));
+    reactionBar.append(button);
+  });
+
   meta.append(pseudo, time, actions);
-  body.append(meta, content);
+  body.append(meta, content, reactionBar);
   item.append(avatar, body);
 
   return item;
@@ -775,6 +1030,7 @@ async function upsertMessage(message) {
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
+  await loadMessageExtras(allMessages);
   await loadProfiles([message.user_id]);
   renderMessages();
 }
@@ -956,7 +1212,7 @@ async function loadRoomLabels() {
 async function loadMessages() {
   const { data, error } = await client
     .from("chat_messages")
-    .select("id,room_id,user_id,pseudo,content,created_at")
+    .select("id,room_id,user_id,pseudo,content,reply_to_id,created_at")
     .eq("room_id", currentRoom.id)
     .order("created_at", { ascending: false })
     .limit(MESSAGE_LIMIT);
@@ -966,6 +1222,7 @@ async function loadMessages() {
   }
 
   allMessages = [...(data || [])].reverse();
+  await loadMessageExtras(allMessages);
   await loadProfiles(allMessages.map((message) => message.user_id));
   renderMessages();
 }
@@ -1074,6 +1331,7 @@ async function selectRoom(roomId) {
   }
 
   saveDraft();
+  setReplyTarget(null);
   currentRoom = room;
   writeStorage("lastRoom", room.id);
   markRoomRead(room.id);
@@ -1499,6 +1757,10 @@ function bindLocalControls() {
     });
   }
 
+  if (replyCancelButton) {
+    replyCancelButton.addEventListener("click", () => setReplyTarget(null));
+  }
+
   if (searchInput) {
     searchInput.addEventListener("input", renderMessages);
   }
@@ -1536,7 +1798,11 @@ function bindLocalControls() {
 
   if (clearViewButton) {
     clearViewButton.addEventListener("click", () => {
-      if (searchInput) {
+      if (replyCancelButton) {
+    replyCancelButton.addEventListener("click", () => setReplyTarget(null));
+  }
+
+  if (searchInput) {
         searchInput.value = "";
       }
 
@@ -1893,9 +2159,10 @@ if (form) {
         room_id: currentRoom.id,
         user_id: currentUser.id,
         pseudo: currentUser.pseudo,
-        content
+        content,
+        reply_to_id: activeReplyMessage ? activeReplyMessage.id : null
       })
-      .select("id,room_id,user_id,pseudo,content,created_at")
+      .select("id,room_id,user_id,pseudo,content,reply_to_id,created_at")
       .single();
 
     if (error) {
@@ -1906,6 +2173,7 @@ if (form) {
     }
 
     input.value = "";
+    setReplyTarget(null);
     clearDraft();
     syncCharCount();
     if (data) {

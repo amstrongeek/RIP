@@ -1,4 +1,4 @@
-const ARCADE_VERSION = "20260625-achievements1";
+const ARCADE_VERSION = "20260625-chatplus1";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");

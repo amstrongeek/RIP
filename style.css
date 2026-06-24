@@ -2368,3 +2368,89 @@ body[data-profile-theme="gold"] {
     grid-template-columns: 1fr;
   }
 }
+.reply-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 3px solid var(--black);
+  background: rgba(57, 255, 136, 0.12);
+  box-shadow: 3px 3px 0 var(--black);
+  color: var(--accent);
+  font-size: 0.52rem;
+}
+
+.reply-preview button,
+.message-reply-context,
+.reaction-pill {
+  border: 2px solid var(--black);
+  background: var(--surface-strong);
+  color: var(--accent);
+  box-shadow: 2px 2px 0 var(--black);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.48rem;
+}
+
+.message-reply-context {
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--accent-2);
+}
+
+.reaction-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.reaction-pill {
+  min-height: 28px;
+  padding: 4px 7px;
+}
+
+.reaction-pill[data-active="true"] {
+  background: var(--accent);
+  color: var(--black);
+}
+
+.chat-message code {
+  font-size: 0.54rem;
+}
+
+.chat-message em {
+  color: var(--accent-2);
+}
+/* avatar-size-guard: keeps uploaded profile images inside pixel containers. */
+.profile-avatar,
+.message-avatar,
+.online-avatar,
+.social-avatar,
+.hero-avatar,
+.small-avatar {
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.profile-avatar > img,
+.message-avatar > img,
+.online-avatar > img,
+.social-avatar > img,
+.hero-avatar > img,
+.small-avatar > img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover;
+}

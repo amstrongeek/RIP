@@ -74,7 +74,26 @@ create table if not exists public.chat_messages (
 );
 
 alter table public.chat_messages add column if not exists room_id uuid references public.chat_rooms(id) on delete cascade;
+alter table public.chat_messages add column if not exists reply_to_id bigint references public.chat_messages(id) on delete set null;
 alter table public.chat_messages replica identity full;
+
+create table if not exists public.message_reactions (
+  message_id bigint not null references public.chat_messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  emoji text not null check (emoji in ('GG', '+1', 'OK', 'RIP')),
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id, emoji)
+);
+
+create table if not exists public.message_reports (
+  id uuid primary key default gen_random_uuid(),
+  message_id bigint not null references public.chat_messages(id) on delete cascade,
+  reporter_id uuid not null references auth.users(id) on delete cascade,
+  reason text not null default 'Signalement utilisateur',
+  status text not null default 'open' check (status in ('open', 'reviewed', 'dismissed')),
+  created_at timestamptz not null default now(),
+  unique (message_id, reporter_id)
+);
 
 create table if not exists public.friend_requests (
   id uuid primary key default gen_random_uuid(),
@@ -193,6 +212,8 @@ alter table public.profiles enable row level security;
 alter table public.chat_rooms enable row level security;
 alter table public.room_members enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.message_reactions enable row level security;
+alter table public.message_reports enable row level security;
 alter table public.friend_requests enable row level security;
 alter table public.user_wallets enable row level security;
 alter table public.point_ledger enable row level security;
@@ -389,6 +410,11 @@ drop policy if exists "Les utilisateurs connectes envoient un message" on public
 drop policy if exists "Les membres lisent les messages du salon" on public.chat_messages;
 drop policy if exists "Les membres envoient dans le salon" on public.chat_messages;
 drop policy if exists "Les utilisateurs suppriment leurs messages" on public.chat_messages;
+drop policy if exists "Les reactions des salons sont lisibles" on public.message_reactions;
+drop policy if exists "Les utilisateurs reagissent aux messages" on public.message_reactions;
+drop policy if exists "Les utilisateurs suppriment leurs reactions" on public.message_reactions;
+drop policy if exists "Les utilisateurs signalent des messages" on public.message_reports;
+drop policy if exists "Les utilisateurs lisent leurs signalements" on public.message_reports;
 
 create policy "Les membres lisent les messages du salon"
 on public.chat_messages
@@ -412,6 +438,59 @@ on public.chat_messages
 for delete
 to authenticated
 using (user_id = auth.uid()::text);
+
+create policy "Les reactions des salons sont lisibles"
+on public.message_reactions
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.chat_messages cm
+    where cm.id = message_id
+      and public.current_user_can_read_room(cm.room_id)
+  )
+);
+
+create policy "Les utilisateurs reagissent aux messages"
+on public.message_reactions
+for insert
+to authenticated
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1
+    from public.chat_messages cm
+    where cm.id = message_id
+      and public.current_user_can_read_room(cm.room_id)
+  )
+);
+
+create policy "Les utilisateurs suppriment leurs reactions"
+on public.message_reactions
+for delete
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Les utilisateurs signalent des messages"
+on public.message_reports
+for insert
+to authenticated
+with check (
+  reporter_id = auth.uid()
+  and exists (
+    select 1
+    from public.chat_messages cm
+    where cm.id = message_id
+      and public.current_user_can_read_room(cm.room_id)
+  )
+);
+
+create policy "Les utilisateurs lisent leurs signalements"
+on public.message_reports
+for select
+to authenticated
+using (reporter_id = auth.uid());
 
 drop policy if exists "Les demandes visibles sont lisibles" on public.friend_requests;
 drop policy if exists "Les utilisateurs envoient des demandes" on public.friend_requests;
@@ -1001,6 +1080,9 @@ on conflict do nothing;
 create index if not exists chat_messages_created_at_idx on public.chat_messages (created_at desc);
 create index if not exists chat_messages_room_created_idx on public.chat_messages (room_id, created_at desc);
 create index if not exists chat_messages_user_id_idx on public.chat_messages (user_id);
+create index if not exists chat_messages_reply_idx on public.chat_messages (reply_to_id);
+create index if not exists message_reactions_message_idx on public.message_reactions (message_id);
+create index if not exists message_reports_message_idx on public.message_reports (message_id);
 create index if not exists room_members_user_idx on public.room_members (user_id);
 create index if not exists room_members_room_idx on public.room_members (room_id);
 create index if not exists chat_rooms_kind_idx on public.chat_rooms (kind);
@@ -1018,6 +1100,8 @@ grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update on public.chat_rooms to authenticated;
 grant select, insert on public.room_members to authenticated;
 grant select, insert, delete on public.chat_messages to authenticated;
+grant select, insert, delete on public.message_reactions to authenticated;
+grant select, insert on public.message_reports to authenticated;
 grant select, insert, update on public.friend_requests to authenticated;
 grant select on public.user_wallets to authenticated;
 grant select on public.point_ledger to authenticated;
