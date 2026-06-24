@@ -742,7 +742,7 @@ begin
   safe_game := lower(trim(coalesce(game_key_input, '')));
   safe_score := greatest(0, least(coalesce(score_input, 0), 100000));
 
-  if safe_game not in ('reflex', 'memory', 'runner') then
+  if safe_game not in ('reflex', 'memory', 'runner', 'aim', 'cipher') then
     raise exception 'invalid_game';
   end if;
 
@@ -760,6 +760,8 @@ begin
     when 'reflex' then least(90, greatest(8, floor(safe_score / 90.0)::integer))
     when 'memory' then least(120, greatest(10, floor(safe_score / 80.0)::integer))
     when 'runner' then least(140, greatest(10, floor(safe_score / 55.0)::integer))
+    when 'aim' then least(130, greatest(10, floor(safe_score / 70.0)::integer))
+    when 'cipher' then least(120, greatest(10, floor(safe_score / 80.0)::integer))
     else 10
   end;
 
@@ -1053,6 +1055,438 @@ $$;
 do $$
 begin
   alter publication supabase_realtime add table public.game_duels;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end;
+$$;
+
+-- Arcade v2 : missions, cosmetiques equipes, Aim/Code et Morpion multi.
+alter table public.profiles add column if not exists avatar_frame text not null default 'none';
+alter table public.profiles add column if not exists profile_theme text not null default 'default';
+
+insert into public.shop_items (item_key, name, description, price, item_type, payload, sort_order)
+values
+  ('name_matrix', 'Pseudo Matrix', 'Degrade vert hacker pour ton pseudo.', 420, 'name_style', '{"name_style":"gradient","name_color_a":"#39ff88","name_color_b":"#7dd3fc"}', 70),
+  ('avatar_frame_gold', 'Frame Gold', 'Cadre dore pour ta photo de profil.', 650, 'avatar_frame', '{"frame":"gold"}', 80)
+on conflict (item_key) do update
+set
+  name = excluded.name,
+  description = excluded.description,
+  price = excluded.price,
+  item_type = excluded.item_type,
+  payload = excluded.payload,
+  is_active = true,
+  sort_order = excluded.sort_order;
+
+create table if not exists public.user_missions (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  mission_key text not null,
+  claimed_at timestamptz not null default now(),
+  primary key (user_id, mission_key)
+);
+
+create table if not exists public.tic_tac_toe_games (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)),
+  host_id uuid not null references auth.users(id) on delete cascade,
+  guest_id uuid references auth.users(id) on delete cascade,
+  board text[] not null default array['','','','','','','','','']::text[],
+  turn_id uuid references auth.users(id) on delete set null,
+  winner_id uuid references auth.users(id) on delete set null,
+  status text not null default 'waiting' check (status in ('waiting', 'playing', 'done')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_missions enable row level security;
+alter table public.tic_tac_toe_games enable row level security;
+
+drop policy if exists "Les utilisateurs lisent leurs missions" on public.user_missions;
+drop policy if exists "Les morpions participants sont lisibles" on public.tic_tac_toe_games;
+
+create policy "Les utilisateurs lisent leurs missions"
+on public.user_missions
+for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Les morpions participants sont lisibles"
+on public.tic_tac_toe_games
+for select
+to authenticated
+using (host_id = auth.uid() or guest_id = auth.uid());
+
+create or replace function public.equip_shop_item(shop_key text)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  item public.shop_items;
+  owned public.user_inventory;
+  profile public.profiles;
+  frame_value text;
+  theme_value text;
+begin
+  select *
+  into item
+  from public.shop_items
+  where item_key = shop_key
+    and is_active
+  limit 1;
+
+  if item.item_key is null then
+    raise exception 'item_not_found';
+  end if;
+
+  select *
+  into owned
+  from public.user_inventory
+  where user_id = auth.uid()
+    and item_key = item.item_key;
+
+  if owned.id is null then
+    raise exception 'item_not_owned';
+  end if;
+
+  if item.item_type not in ('name_style', 'avatar_frame', 'theme') then
+    raise exception 'item_not_equippable';
+  end if;
+
+  update public.user_inventory ui
+  set equipped = false
+  from public.shop_items si
+  where ui.user_id = auth.uid()
+    and ui.item_key = si.item_key
+    and si.item_type = item.item_type;
+
+  update public.user_inventory
+  set equipped = true
+  where user_id = auth.uid()
+    and item_key = item.item_key;
+
+  if item.item_type = 'name_style' then
+    update public.profiles
+    set name_style = coalesce(item.payload->>'name_style', 'solid'),
+        name_color_a = coalesce(item.payload->>'name_color_a', '#39ff88'),
+        name_color_b = coalesce(item.payload->>'name_color_b', '#ffdc5e'),
+        updated_at = now()
+    where id = auth.uid()
+    returning * into profile;
+  elsif item.item_type = 'avatar_frame' then
+    frame_value := coalesce(item.payload->>'frame', 'none');
+    if frame_value not in ('none', 'neon', 'gold') then
+      frame_value := 'none';
+    end if;
+
+    update public.profiles
+    set avatar_frame = frame_value,
+        updated_at = now()
+    where id = auth.uid()
+    returning * into profile;
+  elsif item.item_type = 'theme' then
+    theme_value := coalesce(item.payload->>'theme', 'default');
+    if theme_value not in ('default', 'blue', 'gold') then
+      theme_value := 'default';
+    end if;
+
+    update public.profiles
+    set profile_theme = theme_value,
+        updated_at = now()
+    where id = auth.uid()
+    returning * into profile;
+  end if;
+
+  return profile;
+end;
+$$;
+
+create or replace function public.get_my_missions()
+returns table (
+  mission_key text,
+  label_text text,
+  progress_value integer,
+  goal_value integer,
+  reward_points integer,
+  claimed boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with stats as (
+    select
+      (select count(*)::integer from public.chat_messages where user_id = auth.uid()::text) as messages_count,
+      (select count(*)::integer from public.game_scores where user_id = auth.uid()) as games_count,
+      (select coalesce(max(score), 0)::integer from public.game_scores where user_id = auth.uid() and game_key = 'reflex') as best_reflex,
+      (select coalesce(max(score), 0)::integer from public.game_scores where user_id = auth.uid() and game_key = 'aim') as best_aim,
+      (select count(*)::integer from public.user_inventory where user_id = auth.uid()) as inventory_count,
+      (select count(*)::integer from public.game_duels where (host_id = auth.uid() or guest_id = auth.uid()) and status = 'done')
+        + (select count(*)::integer from public.tic_tac_toe_games where (host_id = auth.uid() or guest_id = auth.uid()) and status = 'done') as multi_count
+  ), missions as (
+    select 'first_message'::text as mission_key, 'Envoyer ton premier message'::text as label_text, messages_count as progress_value, 1::integer as goal_value, 60::integer as reward_points from stats
+    union all select 'arcade_rookie', 'Finir 3 mini-jeux solo', games_count, 3, 120 from stats
+    union all select 'reflex_1000', 'Faire 1000 points sur Reflex', best_reflex, 1000, 150 from stats
+    union all select 'aim_1500', 'Faire 1500 points sur Aim Trainer', best_aim, 1500, 180 from stats
+    union all select 'first_multi', 'Finir un match multijoueur', multi_count, 1, 140 from stats
+    union all select 'first_shop', 'Acheter un item boutique', inventory_count, 1, 80 from stats
+  )
+  select
+    missions.mission_key,
+    missions.label_text,
+    least(missions.progress_value, missions.goal_value),
+    missions.goal_value,
+    missions.reward_points,
+    user_missions.user_id is not null as claimed
+  from missions
+  left join public.user_missions
+    on user_missions.user_id = auth.uid()
+   and user_missions.mission_key = missions.mission_key
+  order by claimed, missions.reward_points;
+$$;
+
+create or replace function public.claim_mission(mission_key_input text)
+returns public.user_wallets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_key text;
+  mission record;
+  wallet public.user_wallets;
+begin
+  clean_key := lower(trim(coalesce(mission_key_input, '')));
+
+  select *
+  into mission
+  from public.get_my_missions()
+  where mission_key = clean_key;
+
+  if not found then
+    raise exception 'mission_not_found';
+  end if;
+
+  if mission.claimed then
+    raise exception 'mission_already_claimed';
+  end if;
+
+  if mission.progress_value < mission.goal_value then
+    raise exception 'mission_not_ready';
+  end if;
+
+  insert into public.user_missions (user_id, mission_key)
+  values (auth.uid(), clean_key)
+  on conflict do nothing;
+
+  if not found then
+    raise exception 'mission_already_claimed';
+  end if;
+
+  wallet := public.add_points(auth.uid(), mission.reward_points, mission.reward_points * 2, 'mission', clean_key);
+  return wallet;
+end;
+$$;
+
+create or replace function public.ttt_winner(board text[])
+returns text
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  wins integer[][] := array[[1,2,3],[4,5,6],[7,8,9],[1,4,7],[2,5,8],[3,6,9],[1,5,9],[3,5,7]];
+  line integer[];
+  mark text;
+begin
+  foreach line slice 1 in array wins loop
+    mark := board[line[1]];
+    if mark <> '' and mark = board[line[2]] and mark = board[line[3]] then
+      return mark;
+    end if;
+  end loop;
+
+  return '';
+end;
+$$;
+
+create or replace function public.create_ttt_game()
+returns public.tic_tac_toe_games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.tic_tac_toe_games;
+begin
+  perform public.ensure_wallet(auth.uid());
+
+  insert into public.tic_tac_toe_games (host_id, turn_id)
+  values (auth.uid(), auth.uid())
+  returning * into game;
+
+  return game;
+end;
+$$;
+
+create or replace function public.join_ttt_game(game_code text)
+returns public.tic_tac_toe_games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.tic_tac_toe_games;
+begin
+  select *
+  into game
+  from public.tic_tac_toe_games
+  where code = upper(trim(game_code))
+    and status = 'waiting'
+  for update;
+
+  if game.id is null then
+    raise exception 'game_not_found';
+  end if;
+
+  if game.host_id = auth.uid() then
+    raise exception 'game_self_join';
+  end if;
+
+  update public.tic_tac_toe_games
+  set guest_id = auth.uid(),
+      status = 'playing',
+      turn_id = host_id,
+      updated_at = now()
+  where id = game.id
+  returning * into game;
+
+  perform public.ensure_wallet(auth.uid());
+  return game;
+end;
+$$;
+
+create or replace function public.play_ttt_move(game_id uuid, cell_index integer)
+returns public.tic_tac_toe_games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.tic_tac_toe_games;
+  new_board text[];
+  symbol text;
+  winner_symbol text;
+  next_turn uuid;
+  final_status text;
+  final_winner uuid;
+begin
+  if cell_index < 0 or cell_index > 8 then
+    raise exception 'invalid_cell';
+  end if;
+
+  select *
+  into game
+  from public.tic_tac_toe_games
+  where id = game_id
+    and (host_id = auth.uid() or guest_id = auth.uid())
+  for update;
+
+  if game.id is null then
+    raise exception 'game_not_found';
+  end if;
+
+  if game.status = 'done' then
+    return game;
+  end if;
+
+  if game.status <> 'playing' or game.guest_id is null then
+    raise exception 'game_not_ready';
+  end if;
+
+  if game.turn_id <> auth.uid() then
+    raise exception 'not_your_turn';
+  end if;
+
+  new_board := game.board;
+
+  if coalesce(new_board[cell_index + 1], '') <> '' then
+    raise exception 'cell_busy';
+  end if;
+
+  symbol := case when game.host_id = auth.uid() then 'X' else 'O' end;
+  new_board[cell_index + 1] := symbol;
+  winner_symbol := public.ttt_winner(new_board);
+  final_status := 'playing';
+  final_winner := null;
+  next_turn := case when auth.uid() = game.host_id then game.guest_id else game.host_id end;
+
+  if winner_symbol <> '' then
+    final_status := 'done';
+    final_winner := case when winner_symbol = 'X' then game.host_id else game.guest_id end;
+    next_turn := null;
+  elsif not ('' = any(new_board)) then
+    final_status := 'done';
+    next_turn := null;
+  end if;
+
+  update public.tic_tac_toe_games
+  set board = new_board,
+      turn_id = next_turn,
+      winner_id = final_winner,
+      status = final_status,
+      updated_at = now()
+  where id = game.id
+  returning * into game;
+
+  if final_status = 'done' then
+    if final_winner is null then
+      perform public.add_points(game.host_id, 25, 35, 'ttt_draw', game.id::text);
+      perform public.add_points(game.guest_id, 25, 35, 'ttt_draw', game.id::text);
+    else
+      perform public.add_points(final_winner, 60, 80, 'ttt_win', game.id::text);
+      perform public.add_points(
+        case when final_winner = game.host_id then game.guest_id else game.host_id end,
+        15,
+        20,
+        'ttt_loss',
+        game.id::text
+      );
+    end if;
+  end if;
+
+  return game;
+end;
+$$;
+
+create index if not exists user_missions_user_idx on public.user_missions (user_id);
+create index if not exists tic_tac_toe_games_code_idx on public.tic_tac_toe_games (code);
+create index if not exists tic_tac_toe_games_players_idx on public.tic_tac_toe_games (host_id, guest_id);
+
+grant select on public.user_missions to authenticated;
+grant select on public.tic_tac_toe_games to authenticated;
+
+revoke all on function public.equip_shop_item(text) from public, anon;
+revoke all on function public.get_my_missions() from public, anon;
+revoke all on function public.claim_mission(text) from public, anon;
+revoke all on function public.ttt_winner(text[]) from public, anon, authenticated;
+revoke all on function public.create_ttt_game() from public, anon;
+revoke all on function public.join_ttt_game(text) from public, anon;
+revoke all on function public.play_ttt_move(uuid, integer) from public, anon;
+
+grant execute on function public.equip_shop_item(text) to authenticated;
+grant execute on function public.get_my_missions() to authenticated;
+grant execute on function public.claim_mission(text) to authenticated;
+grant execute on function public.create_ttt_game() to authenticated;
+grant execute on function public.join_ttt_game(text) to authenticated;
+grant execute on function public.play_ttt_move(uuid, integer) to authenticated;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.tic_tac_toe_games;
 exception
   when duplicate_object then null;
   when undefined_object then null;

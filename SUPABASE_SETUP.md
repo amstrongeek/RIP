@@ -1,6 +1,6 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes, profils, avatars, salons, amis, DM, tchat, points, boutique et mini-jeux est deja dans le site.
+Le code des comptes, profils, avatars, salons, amis, DM, tchat, points, boutique et mini-jeux, missions, equipements et morpion multi est deja dans le site.
 Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
@@ -104,7 +104,7 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - pack 40 features : themes, focus mode, colonnes masquables, export texte, refresh, pause live, sons, favoris, non-lus, brouillons, slash commands et raccourcis
 - points automatiques quand tu chat, daily reward, niveaux et XP
 - boutique avec achats en RIP coins et inventaire
-- mini-jeux solo : Reflex Blitz, Memory Grid, Neon Runner
+- mini-jeux, missions, equipements et morpion multi solo : Reflex Blitz, Memory Grid, Neon Runner
 - mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
 - leaderboards Supabase par mini-jeu
 

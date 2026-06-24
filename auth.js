@@ -1,5 +1,5 @@
 (function () {
-  const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,name_style,name_color_a,name_color_b,created_at,updated_at,last_seen";
+  const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,updated_at,last_seen";
   const AVATAR_BUCKET = "avatars";
   const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
   const AVATAR_EXTENSIONS = {
@@ -101,6 +101,8 @@
       website: (profile && profile.website) || "",
       avatarColor: (profile && profile.avatar_color) || "#39ff88",
       avatarUrl: (profile && profile.avatar_url) || "",
+      avatarFrame: (profile && profile.avatar_frame) || "none",
+      profileTheme: (profile && profile.profile_theme) || "default",
       nameStyle: (profile && profile.name_style) || "solid",
       nameColorA: (profile && profile.name_color_a) || "#39ff88",
       nameColorB: (profile && profile.name_color_b) || "#ffdc5e",
@@ -166,6 +168,8 @@
           status: "En ligne",
           avatar_color: "#39ff88",
           avatar_url: "",
+          avatar_frame: "none",
+          profile_theme: "default",
           name_style: "solid",
           name_color_a: "#39ff88",
           name_color_b: "#ffdc5e"
@@ -495,6 +499,17 @@
       lastMessageAt: lastMessages && lastMessages[0] ? lastMessages[0].created_at : null,
       lastMessage: lastMessages && lastMessages[0] ? lastMessages[0].content : ""
     };
+  }
+
+  async function refresh() {
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error || !data.user) {
+      throw authError("session-load-failed", error);
+    }
+
+    return refreshUser(data.user);
   }
 
   async function logout() {

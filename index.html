@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RIP | Tchat Arcade</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260624-arcade1">
+  <link rel="stylesheet" href="style.css?v=20260624-arcade2">
 </head>
 <body class="app-body">
   <header class="site-header app-header">
@@ -154,6 +154,8 @@
               <span>RIP coins</span>
             </div>
             <p>Niveau <strong data-wallet-level>1</strong> / XP <strong data-wallet-xp>0</strong></p>
+            <div class="wallet-progress" aria-hidden="true"><span data-wallet-progress></span></div>
+            <small data-wallet-progress-text>0 / 120 XP vers niveau 2</small>
             <p>Streak daily : <strong data-wallet-streak>0</strong></p>
             <button class="button primary full" type="button" data-daily-reward>Claim daily</button>
           </div>
@@ -164,9 +166,17 @@
               <button type="button" data-open-game="reflex">Reflex</button>
               <button type="button" data-open-game="memory">Memory</button>
               <button type="button" data-open-game="runner">Runner</button>
-              <button type="button" data-open-game="duel">Duel multi</button>
+              <button type="button" data-open-game="aim">Aim</button>
+              <button type="button" data-open-game="cipher">Code</button>
+              <button type="button" data-open-game="duel">Duel</button>
+              <button type="button" data-open-game="ttt">Morpion</button>
             </div>
             <p data-arcade-status>Gagne des points avec les jeux.</p>
+          </div>
+
+          <div class="chat-panel mission-panel">
+            <span class="panel-label">Missions</span>
+            <div class="mission-list" data-mission-list>Chargement missions...</div>
           </div>
 
           <div class="chat-panel shop-panel">
@@ -182,6 +192,8 @@
               <option value="reflex">Reflex</option>
               <option value="memory">Memory</option>
               <option value="runner">Runner</option>
+              <option value="aim">Aim Trainer</option>
+              <option value="cipher">Code Breaker</option>
             </select>
             <div class="leaderboard-list" data-leaderboard-list>Pas encore de score.</div>
           </div>
@@ -275,11 +287,11 @@
     </section>
   </div>
 
-  <script src="supabase-config.js?v=20260624-arcade1"></script>
-  <script src="supabase-client.js?v=20260624-arcade1"></script>
-  <script src="auth.js?v=20260624-arcade1"></script>
-  <script src="script.js?v=20260624-arcade1"></script>
-  <script type="module" src="chat.js?v=20260624-arcade1"></script>
-  <script type="module" src="arcade.js?v=20260624-arcade1"></script>
+  <script src="supabase-config.js?v=20260624-arcade2"></script>
+  <script src="supabase-client.js?v=20260624-arcade2"></script>
+  <script src="auth.js?v=20260624-arcade2"></script>
+  <script src="script.js?v=20260624-arcade2"></script>
+  <script type="module" src="chat.js?v=20260624-arcade2"></script>
+  <script type="module" src="arcade.js?v=20260624-arcade2"></script>
 </body>
 </html>

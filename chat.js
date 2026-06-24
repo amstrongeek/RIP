@@ -2,8 +2,8 @@ const DEFAULT_ROOM_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
-const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,name_style,name_color_a,name_color_b,created_at,last_seen";
-const APP_VERSION = "20260624-arcade1";
+const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,last_seen";
+const APP_VERSION = "20260624-arcade2";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -315,6 +315,7 @@ function applyAvatar(element, profile, fallbackPseudo = "?") {
 
   element.replaceChildren();
   element.style.setProperty("--avatar-color", profileValue(profile, "avatar_color", "avatarColor", colorFromString(pseudo)));
+  element.dataset.avatarFrame = profileValue(profile, "avatar_frame", "avatarFrame", "none");
 
   if (avatarUrl) {
     const image = document.createElement("img");
@@ -550,6 +551,8 @@ async function openProfile(userId) {
           website: currentUser.website,
           avatar_color: currentUser.avatarColor,
           avatar_url: currentUser.avatarUrl,
+    avatar_frame: currentUser.avatarFrame,
+    profile_theme: currentUser.profileTheme,
           name_style: currentUser.nameStyle,
           name_color_a: currentUser.nameColorA,
           name_color_b: currentUser.nameColorB,
@@ -1826,6 +1829,8 @@ async function startChat() {
     website: currentUser.website,
     avatar_color: currentUser.avatarColor,
     avatar_url: currentUser.avatarUrl,
+    avatar_frame: currentUser.avatarFrame,
+    profile_theme: currentUser.profileTheme,
     name_style: currentUser.nameStyle,
     name_color_a: currentUser.nameColorA,
     name_color_b: currentUser.nameColorB,
@@ -1913,6 +1918,33 @@ if (form) {
     input.focus();
   });
 }
+
+document.addEventListener("rip-auth-change", (event) => {
+  if (!event.detail || !currentUser || event.detail.id !== currentUser.id) {
+    return;
+  }
+
+  currentUser = event.detail;
+  profileCache.set(currentUser.id, {
+    id: currentUser.id,
+    pseudo: currentUser.pseudo,
+    title: currentUser.title,
+    status: currentUser.status,
+    bio: currentUser.bio,
+    website: currentUser.website,
+    avatar_color: currentUser.avatarColor,
+    avatar_url: currentUser.avatarUrl,
+    avatar_frame: currentUser.avatarFrame,
+    profile_theme: currentUser.profileTheme,
+    name_style: currentUser.nameStyle,
+    name_color_a: currentUser.nameColorA,
+    name_color_b: currentUser.nameColorB,
+    created_at: currentUser.createdAt,
+    last_seen: currentUser.lastSeen
+  });
+  syncSelfPanel();
+  renderMessages();
+});
 
 setChatEnabled(false);
 syncCharCount();

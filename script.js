@@ -91,6 +91,7 @@ function setAvatar(element, user) {
 
   element.replaceChildren();
   element.style.setProperty("--avatar-color", user.avatarColor || "#39ff88");
+  element.dataset.avatarFrame = user.avatarFrame || "none";
 
   if (user.avatarUrl) {
     const image = document.createElement("img");
