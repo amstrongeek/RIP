@@ -35,6 +35,8 @@ Le script cree :
 - `shop_items` et `user_inventory` pour la boutique et l'inventaire
 - `game_scores` pour les scores solo et leaderboards
 - `game_duels` pour les duels multijoueurs
+- `user_achievements` pour les succes debloques
+- `user_notifications` pour le centre de notifications
 - les regles RLS pour securiser les donnees et les uploads d'avatars
 - un trigger qui cree un profil a chaque inscription Supabase
 - les fonctions `join_room_by_code`, `create_or_get_dm`, `claim_daily_reward`, `purchase_shop_item`, `complete_solo_game` et les fonctions de duel
@@ -81,7 +83,7 @@ Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplem
 
 Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
 `chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style`,
-`user_wallets`, `shop_items`, `game_scores`, `game_duels`, `user_missions`, `tic_tac_toe_games` ou `avatars`.
+`user_wallets`, `shop_items`, `game_scores`, `game_duels`, `user_missions`, `user_achievements`, `user_notifications`, `tic_tac_toe_games` ou `avatars`.
 
 Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 
@@ -106,6 +108,8 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - points automatiques quand tu chat, daily reward, niveaux et XP
 - boutique avec achats en RIP coins et inventaire
 - mini-jeux solo : Reflex Blitz, Memory Grid, Neon Runner, Aim Trainer, Code Breaker
+- succes permanents avec rewards points/XP
+- centre de notifications avec marquage lu
 - missions, equipements cosmetiques et morpion multi
 - mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
 - leaderboards Supabase par mini-jeu

@@ -3,7 +3,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,last_seen";
-const APP_VERSION = "20260625-platform1";
+const APP_VERSION = "20260625-achievements1";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 

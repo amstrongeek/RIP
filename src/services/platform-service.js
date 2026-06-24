@@ -1,6 +1,7 @@
 import { GAME_CATALOG } from "../data/games.js";
+import { ACHIEVEMENT_CATALOG } from "../data/achievements.js";
 
-export { GAME_CATALOG };
+export { ACHIEVEMENT_CATALOG, GAME_CATALOG };
 
 export function onReady(callback) {
   if (document.readyState === "loading") {
@@ -130,6 +131,52 @@ export async function getRecentScores(client, userId, limit = 6) {
   return data || [];
 }
 
+
+export async function getAchievements(client) {
+  const { data, error } = await client.rpc("get_my_achievements");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function claimAchievement(client, achievementKey) {
+  const { data, error } = await client.rpc("claim_achievement", {
+    achievement_key_input: achievementKey
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getNotifications(client, limit = 20) {
+  const { data, error } = await client.rpc("get_my_notifications", {
+    limit_count: limit
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function markNotificationRead(client, notificationId) {
+  const { data, error } = await client.rpc("mark_notification_read", {
+    notification_id: notificationId
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
 export async function getLeaderboard(client, gameKey = "reflex", limit = 10) {
   const { data, error } = await client
     .from("game_scores")
@@ -176,5 +223,5 @@ export async function getMessageStats(client, userId) {
 
 export function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /user_wallets|shop_items|user_inventory|game_scores|user_missions|tic_tac_toe_games|function|schema|permission/i.test(message);
+  return /user_wallets|shop_items|user_inventory|game_scores|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission/i.test(message);
 }

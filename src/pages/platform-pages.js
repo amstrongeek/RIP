@@ -1,10 +1,14 @@
 import {
   GAME_CATALOG,
+  claimAchievement,
+  getAchievements,
+  getNotifications,
   formatDate,
   gameLabel,
   getLeaderboard,
   getMessageStats,
   getMissions,
+  markNotificationRead,
   getPlatformContext,
   getRecentScores,
   getShop,
@@ -142,6 +146,143 @@ function renderMissions(missions) {
   });
 }
 
+
+function renderAchievements(achievements) {
+  document.querySelectorAll("[data-platform-achievements]").forEach((list) => {
+    const limit = Number(list.dataset.limit || achievements.length || 0);
+    const visible = limit ? achievements.slice(0, limit) : achievements;
+    list.replaceChildren();
+
+    if (!visible.length) {
+      list.textContent = "Aucun succes charge.";
+      return;
+    }
+
+    visible.forEach((achievement) => {
+      const progress = Number(achievement.progress_value || 0);
+      const goal = Number(achievement.goal_value || 1);
+      const ready = progress >= goal;
+      const unlocked = Boolean(achievement.unlocked);
+      const card = createElement("article", "achievement-card");
+      card.dataset.state = unlocked ? "unlocked" : ready ? "ready" : "locked";
+
+      const icon = createElement("span", "achievement-icon", achievement.icon_text || "OK");
+      const body = createElement("div", "achievement-body");
+      body.append(
+        createElement("strong", "", achievement.title_text),
+        createElement("p", "", achievement.description_text),
+        createElement("small", "", `${Math.min(progress, goal)} / ${goal} - reward ${achievement.reward_points} coins`)
+      );
+
+      const bar = createElement("span", "mission-progress");
+      const fill = createElement("span");
+      fill.style.width = `${Math.max(0, Math.min(100, (progress / Math.max(1, goal)) * 100))}%`;
+      bar.append(fill);
+      body.append(bar);
+
+      if (unlocked) {
+        body.append(createElement("small", "achievement-state", `Debloque le ${formatDate(achievement.unlocked_at)}`));
+      } else if (ready) {
+        const claim = createElement("button", "game-button", "Claim");
+        claim.type = "button";
+        claim.addEventListener("click", () => claimAchievementFromUi(achievement.achievement_key));
+        body.append(claim);
+      } else {
+        body.append(createElement("small", "achievement-state", "Verrouille"));
+      }
+
+      card.append(icon, body);
+      list.append(card);
+    });
+  });
+
+  const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
+  text("[data-platform-achievements-count]", String(unlockedCount));
+  text("[data-platform-achievements-total]", String(achievements.length));
+}
+
+function renderNotifications(notifications) {
+  document.querySelectorAll("[data-platform-notifications]").forEach((list) => {
+    const limit = Number(list.dataset.limit || notifications.length || 0);
+    const visible = limit ? notifications.slice(0, limit) : notifications;
+    list.replaceChildren();
+
+    if (!visible.length) {
+      list.textContent = "Aucune notification.";
+      return;
+    }
+
+    visible.forEach((notification) => {
+      const card = createElement("article", "notification-card");
+      card.dataset.state = notification.read_at ? "read" : "unread";
+      card.append(
+        createElement("span", "tag", notification.kind || "system"),
+        createElement("strong", "", notification.title),
+        createElement("p", "", notification.body || ""),
+        createElement("small", "", formatDate(notification.created_at))
+      );
+
+      if (!notification.read_at) {
+        const read = createElement("button", "game-button secondary", "Lu");
+        read.type = "button";
+        read.addEventListener("click", () => markNotificationFromUi(notification.id));
+        card.append(read);
+      }
+
+      list.append(card);
+    });
+  });
+
+  const unread = notifications.filter((notification) => !notification.read_at).length;
+  text("[data-platform-notifications-count]", String(unread));
+}
+
+async function reloadAchievementsAndNotifications() {
+  if (!state.context) {
+    return;
+  }
+
+  const [achievements, notifications] = await Promise.all([
+    getAchievements(state.context.client),
+    getNotifications(state.context.client, 20)
+  ]);
+  renderAchievements(achievements);
+  renderNotifications(notifications);
+}
+
+async function claimAchievementFromUi(achievementKey) {
+  if (!state.context) {
+    return;
+  }
+
+  try {
+    setStatus("Claim succes...");
+    const wallet = await claimAchievement(state.context.client, achievementKey);
+    renderWallet(wallet);
+    await reloadAchievementsAndNotifications();
+    toast("Succes debloque.", "success");
+    setStatus("Succes synchronises.");
+  } catch (error) {
+    console.error("Achievement claim error:", error);
+    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Succes non disponible.", true);
+  }
+}
+
+async function markNotificationFromUi(notificationId) {
+  if (!state.context) {
+    return;
+  }
+
+  try {
+    await markNotificationRead(state.context.client, notificationId);
+    const notifications = await getNotifications(state.context.client, 20);
+    renderNotifications(notifications);
+    setStatus("Notification lue.");
+  } catch (error) {
+    console.error("Notification read error:", error);
+    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Notification indisponible.", true);
+  }
+}
 function renderRecentScores(scores) {
   document.querySelectorAll("[data-platform-activity]").forEach((list) => {
     list.replaceChildren();
@@ -301,18 +442,22 @@ async function initDashboard() {
   }
 
   try {
-    const [wallet, missions, scores, shop, messages] = await Promise.all([
+    const [wallet, missions, scores, shop, messages, achievements, notifications] = await Promise.all([
       getWallet(context.client),
       getMissions(context.client),
       getRecentScores(context.client, context.user.id),
       getShop(context.client),
-      getMessageStats(context.client, context.user.id)
+      getMessageStats(context.client, context.user.id),
+      getAchievements(context.client),
+      getNotifications(context.client, 6)
     ]);
 
     renderWallet(wallet);
     renderMissions(missions);
     renderRecentScores(scores);
     renderShopSummary(shop);
+    renderAchievements(achievements);
+    renderNotifications(notifications);
     text("[data-platform-message-count]", String(messages));
     text("[data-platform-games-count]", String(scores.length));
     setStatus("Dashboard synchronise.");
@@ -359,15 +504,19 @@ async function initSharedStats() {
   }
 
   try {
-    const [wallet, missions, shop] = await Promise.all([
+    const [wallet, missions, shop, achievements, notifications] = await Promise.all([
       getWallet(context.client),
       getMissions(context.client),
-      getShop(context.client)
+      getShop(context.client),
+      getAchievements(context.client),
+      getNotifications(context.client, 6)
     ]);
 
     renderWallet(wallet);
     renderMissions(missions);
     renderShopSummary(shop);
+    renderAchievements(achievements);
+    renderNotifications(notifications);
     setStatus("Plateforme synchronisee.");
   } catch (error) {
     console.error("Platform stats error:", error);
@@ -375,6 +524,52 @@ async function initSharedStats() {
   }
 }
 
+
+async function initAchievementsPage() {
+  const context = await requirePlatform();
+
+  if (!context) {
+    return;
+  }
+
+  try {
+    const [wallet, achievements, notifications] = await Promise.all([
+      getWallet(context.client),
+      getAchievements(context.client),
+      getNotifications(context.client, 8)
+    ]);
+    renderWallet(wallet);
+    renderAchievements(achievements);
+    renderNotifications(notifications);
+    setStatus("Succes synchronises.");
+  } catch (error) {
+    console.error("Achievements page error:", error);
+    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Succes indisponibles.", true);
+  }
+}
+
+async function initNotificationsPage() {
+  const context = await requirePlatform();
+
+  if (!context) {
+    return;
+  }
+
+  try {
+    const [wallet, notifications, achievements] = await Promise.all([
+      getWallet(context.client),
+      getNotifications(context.client, 30),
+      getAchievements(context.client)
+    ]);
+    renderWallet(wallet);
+    renderNotifications(notifications);
+    renderAchievements(achievements);
+    setStatus("Notifications synchronisees.");
+  } catch (error) {
+    console.error("Notifications page error:", error);
+    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Notifications indisponibles.", true);
+  }
+}
 function markActiveNav() {
   const current = location.pathname.split("/").pop() || "index.html";
   document.querySelectorAll(".nav a").forEach((link) => {
@@ -397,5 +592,9 @@ onReady(() => {
     initLeaderboards();
   } else if (page === "arcade" || page === "shop") {
     initSharedStats();
+  } else if (page === "achievements") {
+    initAchievementsPage();
+  } else if (page === "notifications") {
+    initNotificationsPage();
   }
 });

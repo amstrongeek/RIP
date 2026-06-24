@@ -5,17 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard | RIP</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260625-platform1">
+  <link rel="stylesheet" href="style.css?v=20260625-achievements1">
 </head>
 <body class="app-body" data-platform-page="dashboard">
   <header class="site-header app-header">
     <a class="logo" href="dashboard.html">RIP</a>
 
-    <nav class="nav" aria-label="Navigation principale">
+        <nav class="nav" aria-label="Navigation principale">
       <a href="dashboard.html">Dashboard</a>
       <a href="arcade.html">Arcade</a>
       <a href="boutique.html">Boutique</a>
       <a href="classements.html">Classements</a>
+      <a href="succes.html">Succes</a>
+      <a href="notifications.html">Notifs</a>
       <a href="index.html">Tchat</a>
       <a href="connexion.html" data-auth-visible="guest">Connexion</a>
       <a href="inscription.html" data-auth-visible="guest">Inscription</a>
@@ -45,6 +47,7 @@
             <a class="button primary" href="arcade.html">Jouer</a>
             <a class="button secondary" href="boutique.html">Boutique</a>
             <a class="button secondary" href="index.html">Tchat</a>
+            <a class="button secondary" href="succes.html">Succes</a>
           </div>
         </div>
         <div class="platform-status" data-platform-status>Initialisation...</div>
@@ -93,6 +96,30 @@
         </aside>
       </div>
 
+
+      <div class="page-split">
+        <section class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Succes</p>
+              <h2><span data-platform-achievements-count>0</span>/<span data-platform-achievements-total>0</span> debloques</h2>
+            </div>
+            <a class="button secondary" href="succes.html">Voir</a>
+          </div>
+          <div class="achievement-grid compact-list" data-platform-achievements data-limit="4">Chargement...</div>
+        </section>
+
+        <aside class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Notifications</p>
+              <h2><span data-platform-notifications-count>0</span> non lues</h2>
+            </div>
+            <a class="button secondary" href="notifications.html">Inbox</a>
+          </div>
+          <div class="notification-list compact-list" data-platform-notifications data-limit="4">Chargement...</div>
+        </aside>
+      </div>
       <section class="platform-panel">
         <div class="section-title-row">
           <div>
@@ -111,10 +138,10 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260625-platform1"></script>
-  <script src="supabase-client.js?v=20260625-platform1"></script>
-  <script src="auth.js?v=20260625-platform1"></script>
-  <script src="script.js?v=20260625-platform1"></script>
-  <script type="module" src="src/pages/platform-pages.js?v=20260625-platform1"></script>
+  <script src="supabase-config.js?v=20260625-achievements1"></script>
+  <script src="supabase-client.js?v=20260625-achievements1"></script>
+  <script src="auth.js?v=20260625-achievements1"></script>
+  <script src="script.js?v=20260625-achievements1"></script>
+  <script type="module" src="src/pages/platform-pages.js?v=20260625-achievements1"></script>
 </body>
 </html>

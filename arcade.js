@@ -1,4 +1,4 @@
-const ARCADE_VERSION = "20260625-platform1";
+const ARCADE_VERSION = "20260625-achievements1";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
@@ -137,7 +137,7 @@ function sleep(ms) {
 
 function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /user_wallets|shop_items|user_inventory|game_scores|game_duels|tic_tac_toe_games|user_missions|function|schema|permission|wallet/i.test(message);
+  return /user_wallets|shop_items|user_inventory|game_scores|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|wallet/i.test(message);
 }
 
 function xpForLevel(level) {
@@ -216,7 +216,9 @@ function renderShop(items, inventory) {
     const title = createElement("strong", "", item.name);
     const description = createElement("small", "", item.description);
     const price = createElement("small", "", `${item.price} RIP coins`);
-    const buy = createButton(owned.has(item.item_key) ? "Racheter" : "Acheter", () => purchaseItem(item.item_key), "game-button secondary");
+    const isOwned = owned.has(item.item_key);
+    const buy = createButton(isOwned ? "Possede" : "Acheter", () => purchaseItem(item.item_key), "game-button secondary");
+    buy.disabled = isOwned;
 
     row.append(title, description, price, buy);
     shopList.append(row);
@@ -306,7 +308,7 @@ async function purchaseItem(itemKey) {
     setArcadeStatus("Achat valide.");
   } catch (error) {
     console.error("Erreur achat:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour la boutique." : "Achat impossible.", true);
+    setArcadeStatus(String(error && error.message || "").includes("item_already_owned") ? "Objet deja possede." : schemaMissing(error) ? "Relance le SQL Supabase pour la boutique." : "Achat impossible.", true);
   }
 }
 

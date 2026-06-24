@@ -794,6 +794,15 @@ begin
     raise exception 'item_not_found';
   end if;
 
+  if exists (
+    select 1
+    from public.user_inventory ui
+    where ui.user_id = auth.uid()
+      and ui.item_key = item.item_key
+  ) then
+    raise exception 'item_already_owned';
+  end if;
+
   perform public.ensure_wallet(auth.uid());
 
   select *
@@ -810,9 +819,9 @@ begin
 
   insert into public.user_inventory (user_id, item_key, quantity)
   values (auth.uid(), item.item_key, 1)
-  on conflict (user_id, item_key) do update
-  set quantity = public.user_inventory.quantity + 1,
-      acquired_at = now();
+  on conflict (user_id, item_key) do nothing;
+
+  perform public.create_notification(auth.uid(), 'shop', 'Objet achete', item.name || ' ajoute a ton inventaire', jsonb_build_object('item_key', item.item_key));
 
   return wallet;
 end;
@@ -1492,3 +1501,239 @@ exception
   when undefined_object then null;
 end;
 $$;
+-- Arcade v3 : succes permanents et centre de notifications.
+create table if not exists public.user_achievements (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  achievement_key text not null,
+  unlocked_at timestamptz not null default now(),
+  primary key (user_id, achievement_key)
+);
+
+create table if not exists public.user_notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null default 'system',
+  title text not null,
+  body text not null default '',
+  payload jsonb not null default '{}'::jsonb,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.user_achievements enable row level security;
+alter table public.user_notifications enable row level security;
+
+drop policy if exists "Les utilisateurs lisent leurs succes" on public.user_achievements;
+drop policy if exists "Les utilisateurs lisent leurs notifications" on public.user_notifications;
+drop policy if exists "Les utilisateurs marquent leurs notifications" on public.user_notifications;
+
+create policy "Les utilisateurs lisent leurs succes"
+on public.user_achievements
+for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Les utilisateurs lisent leurs notifications"
+on public.user_notifications
+for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Les utilisateurs marquent leurs notifications"
+on public.user_notifications
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create or replace function public.create_notification(
+  target_user uuid,
+  kind_text text,
+  title_text text,
+  body_text text default '',
+  payload_json jsonb default '{}'::jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if target_user is null then
+    return;
+  end if;
+
+  insert into public.user_notifications (user_id, kind, title, body, payload)
+  values (
+    target_user,
+    left(coalesce(kind_text, 'system'), 32),
+    left(coalesce(title_text, 'Notification'), 80),
+    left(coalesce(body_text, ''), 240),
+    coalesce(payload_json, '{}'::jsonb)
+  );
+end;
+$$;
+
+create or replace function public.get_my_achievements()
+returns table (
+  achievement_key text,
+  title_text text,
+  description_text text,
+  icon_text text,
+  reward_points integer,
+  progress_value integer,
+  goal_value integer,
+  unlocked boolean,
+  unlocked_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with stats as (
+    select
+      (select count(*)::integer from public.chat_messages where user_id = auth.uid()::text) as messages_count,
+      (select count(*)::integer from public.game_scores where user_id = auth.uid()) as games_count,
+      (select count(distinct game_key)::integer from public.game_scores where user_id = auth.uid()) as distinct_games,
+      (select coalesce(max(score), 0)::integer from public.game_scores where user_id = auth.uid()) as best_score,
+      (select count(*)::integer from public.user_inventory where user_id = auth.uid()) as inventory_count,
+      (select coalesce(max(level), 1)::integer from public.user_wallets where user_id = auth.uid()) as current_level,
+      (select coalesce(max(streak), 0)::integer from public.user_wallets where user_id = auth.uid()) as daily_streak,
+      (select count(*)::integer from public.game_duels where (host_id = auth.uid() or guest_id = auth.uid()) and status = 'done')
+        + (select count(*)::integer from public.tic_tac_toe_games where (host_id = auth.uid() or guest_id = auth.uid()) and status = 'done') as multi_count
+  ), achievements as (
+    select 'first_message'::text as achievement_key, 'Premier message'::text as title_text, 'Envoyer ton premier message dans le tchat.'::text as description_text, 'MSG'::text as icon_text, 60::integer as reward_points, messages_count as progress_value, 1::integer as goal_value from stats
+    union all select 'first_game', 'Premiere partie', 'Terminer ton premier mini-jeu solo.', 'PLAY', 80, games_count, 1 from stats
+    union all select 'first_purchase', 'Premier achat', 'Acheter ton premier item boutique.', 'SHOP', 80, inventory_count, 1 from stats
+    union all select 'first_multi', 'Premier multi', 'Terminer un duel ou un morpion en ligne.', 'PVP', 120, multi_count, 1 from stats
+    union all select 'score_legend', 'Score legendaire', 'Atteindre 2500 points sur un mini-jeu.', 'TOP', 220, best_score, 2500 from stats
+    union all select 'collector', 'Collectionneur', 'Posseder 5 items dans ton inventaire.', 'BAG', 180, inventory_count, 5 from stats
+    union all select 'daily_3', 'Joueur quotidien', 'Atteindre 3 jours de streak daily.', 'DAY', 150, daily_streak, 3 from stats
+    union all select 'level_5', 'Niveau 5', 'Atteindre le niveau 5.', 'LV5', 180, current_level, 5 from stats
+    union all select 'level_10', 'Niveau 10', 'Atteindre le niveau 10.', 'LV10', 350, current_level, 10 from stats
+    union all select 'chatter_25', 'Voix du serveur', 'Envoyer 25 messages.', 'CHAT', 200, messages_count, 25 from stats
+    union all select 'three_games', 'Explorateur arcade', 'Jouer a 3 jeux differents.', '3G', 160, distinct_games, 3 from stats
+  )
+  select
+    achievements.achievement_key,
+    achievements.title_text,
+    achievements.description_text,
+    achievements.icon_text,
+    achievements.reward_points,
+    least(achievements.progress_value, achievements.goal_value),
+    achievements.goal_value,
+    user_achievements.user_id is not null as unlocked,
+    user_achievements.unlocked_at
+  from achievements
+  left join public.user_achievements
+    on user_achievements.user_id = auth.uid()
+   and user_achievements.achievement_key = achievements.achievement_key
+  order by unlocked, achievements.reward_points, achievements.achievement_key;
+$$;
+
+create or replace function public.claim_achievement(achievement_key_input text)
+returns public.user_wallets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_key text;
+  achievement record;
+  wallet public.user_wallets;
+begin
+  clean_key := lower(trim(coalesce(achievement_key_input, '')));
+
+  select *
+  into achievement
+  from public.get_my_achievements()
+  where achievement_key = clean_key;
+
+  if not found then
+    raise exception 'achievement_not_found';
+  end if;
+
+  if achievement.unlocked then
+    raise exception 'achievement_already_unlocked';
+  end if;
+
+  if achievement.progress_value < achievement.goal_value then
+    raise exception 'achievement_not_ready';
+  end if;
+
+  insert into public.user_achievements (user_id, achievement_key)
+  values (auth.uid(), clean_key)
+  on conflict do nothing;
+
+  if not found then
+    raise exception 'achievement_already_unlocked';
+  end if;
+
+  wallet := public.add_points(auth.uid(), achievement.reward_points, achievement.reward_points * 2, 'achievement', clean_key);
+  perform public.create_notification(
+    auth.uid(),
+    'achievement',
+    'Succes debloque',
+    achievement.title_text || ' +' || achievement.reward_points || ' coins',
+    jsonb_build_object('achievement_key', clean_key)
+  );
+
+  return wallet;
+end;
+$$;
+
+create or replace function public.get_my_notifications(limit_count integer default 20)
+returns setof public.user_notifications
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select *
+  from public.user_notifications
+  where user_id = auth.uid()
+  order by created_at desc
+  limit greatest(1, least(coalesce(limit_count, 20), 50));
+$$;
+
+create or replace function public.mark_notification_read(notification_id uuid)
+returns public.user_notifications
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  notification public.user_notifications;
+begin
+  update public.user_notifications
+  set read_at = coalesce(read_at, now())
+  where id = notification_id
+    and user_id = auth.uid()
+  returning * into notification;
+
+  if notification.id is null then
+    raise exception 'notification_not_found';
+  end if;
+
+  return notification;
+end;
+$$;
+
+create index if not exists user_achievements_user_idx on public.user_achievements (user_id);
+create index if not exists user_notifications_user_created_idx on public.user_notifications (user_id, created_at desc);
+create index if not exists user_notifications_unread_idx on public.user_notifications (user_id, read_at) where read_at is null;
+
+grant select on public.user_achievements to authenticated;
+grant select, update on public.user_notifications to authenticated;
+
+revoke all on function public.create_notification(uuid, text, text, text, jsonb) from public, anon, authenticated;
+revoke all on function public.get_my_achievements() from public, anon;
+revoke all on function public.claim_achievement(text) from public, anon;
+revoke all on function public.get_my_notifications(integer) from public, anon;
+revoke all on function public.mark_notification_read(uuid) from public, anon;
+
+grant execute on function public.get_my_achievements() to authenticated;
+grant execute on function public.claim_achievement(text) to authenticated;
+grant execute on function public.get_my_notifications(integer) to authenticated;
+grant execute on function public.mark_notification_read(uuid) to authenticated;
