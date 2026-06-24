@@ -1,6 +1,6 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes, profils, avatars, salons, amis, DM et tchat est deja dans le site.
+Le code des comptes, profils, avatars, salons, amis, DM, tchat, points, boutique et mini-jeux est deja dans le site.
 Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
@@ -30,9 +30,14 @@ Le script cree :
 - `room_members` pour savoir qui a acces a chaque salon
 - `friend_requests` pour les demandes d'amis
 - `chat_messages` pour les messages par salon
+- `user_wallets` pour les points, XP, niveaux et daily reward
+- `point_ledger` pour l'historique des gains/depenses
+- `shop_items` et `user_inventory` pour la boutique et l'inventaire
+- `game_scores` pour les scores solo et leaderboards
+- `game_duels` pour les duels multijoueurs
 - les regles RLS pour securiser les donnees et les uploads d'avatars
 - un trigger qui cree un profil a chaque inscription Supabase
-- les fonctions `join_room_by_code` et `create_or_get_dm`
+- les fonctions `join_room_by_code`, `create_or_get_dm`, `claim_daily_reward`, `purchase_shop_item`, `complete_solo_game` et les fonctions de duel
 - les index utiles pour les statistiques et le tchat
 
 ## 3. Recuperer les infos publiques
@@ -75,7 +80,8 @@ Si une nouvelle version ajoute des champs de profil ou de tchat, relance simplem
 `supabase-chat.sql` dans Supabase. Le script utilise `if not exists`, donc il peut etre relance sans supprimer les comptes existants.
 
 Pour cette version, il faut le relancer. Sinon tu peux voir des erreurs `400` sur `profiles`,
-`chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style` ou `avatars`.
+`chat_rooms`, `room_members`, `friend_requests`, `room_id`, `avatar_url`, `name_style`,
+`user_wallets`, `shop_items`, `game_scores`, `game_duels` ou `avatars`.
 
 Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 
@@ -96,6 +102,11 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - suppression de ses propres messages
 - favoris de salons, non-lus, brouillons par salon et dernier salon memorise
 - pack 40 features : themes, focus mode, colonnes masquables, export texte, refresh, pause live, sons, favoris, non-lus, brouillons, slash commands et raccourcis
+- points automatiques quand tu chat, daily reward, niveaux et XP
+- boutique avec achats en RIP coins et inventaire
+- mini-jeux solo : Reflex Blitz, Memory Grid, Neon Runner
+- mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
+- leaderboards Supabase par mini-jeu
 
 ## Probleme frequent
 
