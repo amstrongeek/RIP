@@ -74,6 +74,16 @@ export async function getPlatformContext() {
   return { configured, client, user };
 }
 
+export async function getPlatformHealth(client) {
+  const { data, error } = await client.rpc("get_platform_health");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
 export async function getWallet(client) {
   const { data, error } = await client.rpc("get_my_wallet");
 
@@ -223,5 +233,5 @@ export async function getMessageStats(client, userId) {
 
 export function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission|column|policy/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|user_missions|user_achievements|user_notifications|tic_tac_toe_games|bug_reports|function|schema|permission|column|policy/i.test(message);
 }

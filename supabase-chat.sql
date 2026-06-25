@@ -2633,5 +2633,165 @@ grant execute on function public.admin_set_game_enabled(text, boolean) to authen
 grant execute on function public.admin_set_game_balance(text, integer, integer, integer, integer) to authenticated;
 grant execute on function public.admin_get_stats() to authenticated;
 
--- Pour activer le premier admin, remplace l'UUID puis execute une seule fois :
-insert into public.admin_roles (user_id, role) values ('d2c189a4-4723-4fa7-a565-44c8675744b0', 'owner') on conflict (user_id) do update set role = excluded.role;
+-- RIP #TUFF v5 : health-check plateforme et signalement de bugs.
+create table if not exists public.bug_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  reporter_key text not null default '',
+  title text not null check (char_length(title) between 3 and 80),
+  body text not null check (char_length(body) between 5 and 600),
+  page_url text not null default '',
+  user_agent text not null default '',
+  status text not null default 'open' check (status in ('open', 'seen', 'fixed', 'closed')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.bug_reports enable row level security;
+
+drop policy if exists "Les admins lisent les bugs" on public.bug_reports;
+
+create policy "Les admins lisent les bugs"
+on public.bug_reports
+for select
+to authenticated
+using (public.is_admin());
+
+create or replace function public.submit_bug_report(
+  title_input text,
+  body_input text,
+  page_url_input text default '',
+  user_agent_input text default ''
+)
+returns public.bug_reports
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_title text;
+  clean_body text;
+  clean_url text;
+  clean_agent text;
+  clean_key text;
+  report public.bug_reports;
+begin
+  clean_title := left(trim(coalesce(title_input, '')), 80);
+  clean_body := left(trim(coalesce(body_input, '')), 600);
+  clean_url := left(trim(coalesce(page_url_input, '')), 500);
+  clean_agent := left(trim(coalesce(user_agent_input, '')), 240);
+  clean_key := coalesce(auth.uid()::text, md5(clean_agent || ':' || clean_url));
+
+  if char_length(clean_title) < 3 or char_length(clean_body) < 5 then
+    raise exception 'bug_report_invalid';
+  end if;
+
+  if exists (
+    select 1
+    from public.bug_reports
+    where reporter_key = clean_key
+      and created_at > now() - interval '60 seconds'
+  ) then
+    raise exception 'bug_cooldown';
+  end if;
+
+  insert into public.bug_reports (user_id, reporter_key, title, body, page_url, user_agent)
+  values (auth.uid(), clean_key, clean_title, clean_body, clean_url, clean_agent)
+  returning * into report;
+
+  return report;
+end;
+$$;
+
+create or replace function public.get_platform_health()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  admin_ok boolean := false;
+begin
+  if auth.uid() is not null
+     and to_regclass('public.admin_roles') is not null
+     and to_regprocedure('public.is_admin()') is not null then
+    begin
+      admin_ok := public.is_admin();
+    exception
+      when others then
+        admin_ok := false;
+    end;
+  end if;
+
+  return jsonb_build_object(
+    'schema_version', '20260625-riptuff1',
+    'tables', jsonb_build_object(
+      'profiles', to_regclass('public.profiles') is not null,
+      'shop_items', to_regclass('public.shop_items') is not null,
+      'game_scores', to_regclass('public.game_scores') is not null,
+      'user_notifications', to_regclass('public.user_notifications') is not null,
+      'admin_roles', to_regclass('public.admin_roles') is not null,
+      'bug_reports', to_regclass('public.bug_reports') is not null
+    ),
+    'functions', jsonb_build_object(
+      'update_my_profile', to_regprocedure('public.update_my_profile(text,text,text,text,text)') is not null,
+      'complete_solo_game', to_regprocedure('public.complete_solo_game(text,integer)') is not null,
+      'get_my_notifications', to_regprocedure('public.get_my_notifications(integer)') is not null,
+      'is_admin', to_regprocedure('public.is_admin()') is not null,
+      'submit_bug_report', to_regprocedure('public.submit_bug_report(text,text,text,text)') is not null
+    ),
+    'is_authenticated', auth.uid() is not null,
+    'is_admin', admin_ok
+  );
+end;
+$$;
+
+create index if not exists bug_reports_created_idx on public.bug_reports (created_at desc);
+create index if not exists bug_reports_status_idx on public.bug_reports (status, created_at desc);
+create index if not exists bug_reports_reporter_idx on public.bug_reports (reporter_key, created_at desc);
+
+create or replace function public.admin_get_stats()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'admin_required';
+  end if;
+
+  return jsonb_build_object(
+    'users', (select count(*) from public.profiles),
+    'messages', (select count(*) from public.chat_messages),
+    'scores', (select count(*) from public.game_scores),
+    'shop_items', (select count(*) from public.shop_items),
+    'purchases', (select count(*) from public.user_inventory),
+    'bug_reports', (select count(*) from public.bug_reports),
+    'points_total', (select coalesce(sum(total_points), 0) from public.user_wallets)
+  );
+end;
+$$;
+
+grant select on public.bug_reports to authenticated;
+
+revoke all on function public.submit_bug_report(text, text, text, text) from public, anon, authenticated;
+revoke all on function public.get_platform_health() from public, anon, authenticated;
+
+grant execute on function public.submit_bug_report(text, text, text, text) to anon, authenticated;
+grant execute on function public.get_platform_health() to anon, authenticated;
+
+-- Pour activer le premier admin, remplace l'UUID puis execute une seule fois.
+-- Ce bloc ne bloque pas le script si l'utilisateur n'existe pas encore.
+do $$
+declare
+  first_admin uuid := 'd2c189a4-4723-4fa7-a565-44c8675744b0';
+begin
+  if exists (select 1 from auth.users where id = first_admin) then
+    insert into public.admin_roles (user_id, role)
+    values (first_admin, 'owner')
+    on conflict (user_id) do update
+    set role = excluded.role;
+  end if;
+end;
+$$;

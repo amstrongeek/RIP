@@ -3,7 +3,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,last_seen";
-const APP_VERSION = "20260625-arcadev4";
+const APP_VERSION = "20260625-riptuff1";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -544,7 +544,7 @@ async function toggleReaction(message, emoji) {
     renderMessages();
   } catch (error) {
     console.error("Erreur reaction:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Reaction impossible", "error");
+    setStatus(chatErrorMessage(error, "Reaction impossible"), "error");
   }
 }
 
@@ -569,7 +569,7 @@ async function reportMessage(message) {
     setFeatureStatus("Message signale.");
   } catch (error) {
     console.error("Erreur signalement:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Signalement impossible", "error");
+    setStatus(chatErrorMessage(error, "Signalement impossible"), "error");
   }
 }
 function draftKey(roomId) {
@@ -618,6 +618,28 @@ function schemaHelp(error) {
   return /room_id|chat_rooms|room_members|friend_requests|invite_code|avatar_url|name_style|name_color|message_reactions|message_reports|reply_to_id|storage|bucket|column|schema|relationship/i.test(message);
 }
 
+function chatErrorMessage(error, fallback = "Erreur tchat") {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+
+  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
+    return "RPC Supabase manquante : applique le fichier supabase-chat.sql complet.";
+  }
+
+  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
+    return "Table tchat manquante : applique le fichier supabase-chat.sql complet.";
+  }
+
+  if (/column .* does not exist|42703|relationship/i.test(message)) {
+    return "Migration tchat incomplete : colonne ou relation manquante.";
+  }
+
+  if (/permission denied|not authorized|42501|row-level security|violates row-level security|policy/i.test(message)) {
+    return "Permission tchat refusee : verifie les policies Supabase.";
+  }
+
+  return fallback;
+}
+
 async function loadProfiles(userIds) {
   const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
   const missing = ids.filter((id) => !profileCache.has(id));
@@ -644,7 +666,7 @@ async function loadProfiles(userIds) {
     (fallback.data || []).forEach((profile) => {
       profileCache.set(profile.id, profile);
     });
-    setFeatureStatus("Profils charges en mode compatible. Relance le SQL pour les PP.");
+    setFeatureStatus("Profils charges en mode compatible. Migration avatars incomplete.");
     return;
   }
 
@@ -768,7 +790,7 @@ async function openProfile(userId) {
     }
   } catch (error) {
     console.error("Erreur profil public:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Profil inaccessible", "error");
+    setStatus(chatErrorMessage(error, "Profil inaccessible"), "error");
   }
 }
 
@@ -797,7 +819,7 @@ function updateCounters(visibleMessages) {
 
 function updateTitle() {
   const totalUnread = [...unreadByRoom.values()].reduce((sum, value) => sum + value, 0);
-  document.title = totalUnread ? `(${totalUnread}) RIP | Tchat` : "RIP | Tchat";
+  document.title = totalUnread ? `(${totalUnread}) RIP #TUFF | Tchat` : "RIP #TUFF | Tchat";
 }
 
 function incrementUnread(roomId) {
@@ -1356,7 +1378,7 @@ async function selectRoom(roomId) {
     setStatus(`Salon : ${roomDisplayName(currentRoom)}`, "success");
   } catch (error) {
     console.error("Erreur salon:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Salon inaccessible", "error");
+    setStatus(chatErrorMessage(error, "Salon inaccessible"), "error");
   }
 }
 
@@ -1440,7 +1462,7 @@ async function loadFriends() {
 
   if (error) {
     if (schemaHelp(error)) {
-      setBoxMessage(friendList, "Relance le SQL pour activer les amis.");
+      setBoxMessage(friendList, "Migration amis incomplete dans Supabase.");
       return;
     }
 
@@ -1623,7 +1645,7 @@ async function sendFriendRequest(receiverId) {
     });
 
   if (error) {
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Demande deja envoyee", "error");
+    setStatus(chatErrorMessage(error, "Demande deja envoyee"), "error");
     return;
   }
 
@@ -1639,7 +1661,7 @@ async function openDirectMessage(friendId) {
 
   if (error) {
     console.error("Erreur DM:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "DM impossible", "error");
+    setStatus(chatErrorMessage(error, "DM impossible"), "error");
     return;
   }
 
@@ -1667,7 +1689,7 @@ async function createRoom(name, kind) {
 
   if (error) {
     console.error("Erreur creation salon:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Creation impossible", "error");
+    setStatus(chatErrorMessage(error, "Creation impossible"), "error");
     return;
   }
 
@@ -1700,7 +1722,7 @@ async function joinRoom(code) {
 
   if (error) {
     console.error("Erreur rejoindre salon:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Code invalide", "error");
+    setStatus(chatErrorMessage(error, "Code invalide"), "error");
     return;
   }
 
@@ -2126,7 +2148,7 @@ async function startChat() {
     await selectRoom(currentRoom.id);
   } catch (error) {
     console.error("Erreur initialisation tchat:", error);
-    setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Erreur tchat", "error");
+    setStatus(chatErrorMessage(error, "Erreur tchat"), "error");
     setChatEnabled(false);
   }
 }
@@ -2175,7 +2197,7 @@ if (form) {
 
     if (error) {
       console.error("Erreur envoi:", error);
-      setStatus(schemaHelp(error) ? "Relance le SQL Supabase" : "Envoi impossible", "error");
+      setStatus(chatErrorMessage(error, "Envoi impossible"), "error");
       setChatEnabled(true);
       return;
     }

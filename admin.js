@@ -24,6 +24,32 @@ function setStatus(message, error = false) {
   statusElement.dataset.state = error ? "error" : "ok";
 }
 
+function adminErrorMessage(error, fallback = "Action admin impossible.") {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+
+  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
+    return "RPC admin manquante : applique supabase-chat.sql complet.";
+  }
+
+  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
+    return "Table admin manquante : applique supabase-chat.sql complet.";
+  }
+
+  if (/column .* does not exist|42703/i.test(message)) {
+    return "Colonne Supabase manquante. Migration incomplete.";
+  }
+
+  if (/admin_required/i.test(message)) {
+    return "Ton compte n'a pas le role admin/owner.";
+  }
+
+  if (/permission denied|row-level security|42501/i.test(message)) {
+    return "Permission refusee par Supabase/RLS.";
+  }
+
+  return fallback;
+}
+
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
   if (className) {
@@ -106,7 +132,23 @@ async function refreshLogs() {
 }
 
 async function refreshAll() {
-  await Promise.all([refreshStats(), refreshUsers(), refreshLogs()]);
+  const tasks = await Promise.allSettled([refreshStats(), refreshUsers(), refreshLogs()]);
+  const firstError = tasks.find((task) => task.status === "rejected");
+
+  if (firstError) {
+    if (statsBox && tasks[0].status === "rejected") {
+      statsBox.textContent = adminErrorMessage(tasks[0].reason, "Stats indisponibles.");
+    }
+    if (usersBox && tasks[1].status === "rejected") {
+      usersBox.textContent = adminErrorMessage(tasks[1].reason, "Utilisateurs indisponibles.");
+    }
+    if (logsBox && tasks[2].status === "rejected") {
+      logsBox.textContent = adminErrorMessage(tasks[2].reason, "Logs indisponibles.");
+    }
+    setStatus(adminErrorMessage(firstError.reason, "Admin partiellement charge."), true);
+    return;
+  }
+
   setStatus("Admin pret.");
 }
 
@@ -129,7 +171,7 @@ function bindForm(selector, handler) {
       setStatus("Action admin executee.");
     } catch (error) {
       console.error("Admin error:", error);
-      setStatus("Action admin refusee ou SQL pas encore relance.", true);
+      setStatus(adminErrorMessage(error, "Action admin refusee."), true);
     } finally {
       submit.disabled = false;
     }
@@ -205,12 +247,20 @@ async function initAdmin() {
   }
 
   client = await window.RipSupabase.getClient();
-  const isAdmin = await rpc("is_admin");
+  let health = null;
+
+  try {
+    health = await rpc("get_platform_health");
+  } catch (error) {
+    console.warn("Health check indisponible:", error);
+  }
+
+  const isAdmin = health && typeof health.is_admin === "boolean" ? health.is_admin : await rpc("is_admin");
 
   if (!isAdmin) {
     blockedBox.hidden = false;
     shell.hidden = true;
-    setStatus("Acces refuse.", true);
+    setStatus("Acces refuse : role owner/admin absent.", true);
     return;
   }
 
@@ -223,6 +273,6 @@ async function initAdmin() {
 onReady(() => {
   initAdmin().catch((error) => {
     console.error("Admin init:", error);
-    setStatus("Admin indisponible. Relance le SQL Supabase.", true);
+    setStatus(adminErrorMessage(error, "Admin indisponible."), true);
   });
 });

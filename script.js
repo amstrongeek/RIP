@@ -26,12 +26,12 @@ function humanAuthError(error) {
     "pseudo-invalid": "Pseudo invalide : 3 a 20 caracteres, lettres, chiffres, tiret ou underscore.",
     "email-invalid": "Email invalide.",
     "signup-failed": "Inscription impossible. Verifie l'email ou reessaie plus tard.",
-    "profile-load-failed": "Profil introuvable. Relance le SQL Supabase puis reessaie.",
-    "profile-save-failed": "Profil impossible a enregistrer. Relance le SQL Supabase puis reessaie.",
-    "profile-update-failed": "Profil impossible a mettre a jour. Relance le SQL Supabase puis reessaie.",
+    "profile-load-failed": "Session OK, mais le profil Supabase ne charge pas. Verifie la table profiles et la RPC update_my_profile.",
+    "profile-save-failed": "Profil impossible a creer. Verifie la table profiles et les policies Supabase.",
+    "profile-update-failed": "Profil impossible a mettre a jour. Verifie la RPC update_my_profile dans Supabase.",
     "avatar-too-large": "Image trop lourde. Maximum : 2 Mo.",
     "avatar-type-invalid": "Format invalide. Utilise PNG, JPG, WEBP ou GIF.",
-    "avatar-upload-failed": "Photo impossible a envoyer. Relance le SQL Supabase puis reessaie.",
+    "avatar-upload-failed": "Photo impossible a envoyer. Verifie le bucket avatars et ses policies Supabase.",
     "avatar-invalid": "Couleur avatar invalide.",
     "name-style-invalid": "Style de pseudo invalide.",
     "website-invalid": "Le lien doit commencer par https://",
@@ -44,6 +44,36 @@ function humanAuthError(error) {
   };
 
   return messages[error && error.code] || "Action impossible pour le moment.";
+}
+
+function humanSupabaseError(error, fallback = "Action Supabase impossible.") {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+
+  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
+    return "RPC Supabase manquante : le fichier supabase-chat.sql complet n'a pas ete applique.";
+  }
+
+  if (/permission denied|not authorized|42501|row-level security|violates row-level security/i.test(message)) {
+    return "Permission Supabase refusee. Verifie les grants/RLS du SQL.";
+  }
+
+  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
+    return "Table Supabase manquante : le fichier supabase-chat.sql complet n'a pas ete applique.";
+  }
+
+  if (/column .* does not exist|42703/i.test(message)) {
+    return "Colonne Supabase manquante. La migration SQL n'est pas complete.";
+  }
+
+  if (/admin_required/i.test(message)) {
+    return "Ton compte n'a pas le role admin/owner.";
+  }
+
+  if (/bug_cooldown/i.test(message)) {
+    return "Attends une minute avant de renvoyer un bug.";
+  }
+
+  return fallback;
 }
 
 function formatShortDate(value) {
@@ -208,6 +238,78 @@ async function updateAuthVisibility() {
   });
 }
 
+function bindNavigationMenu() {
+  document.querySelectorAll("[data-nav-toggle]").forEach((button) => {
+    const nav = button.parentElement ? button.parentElement.querySelector("[data-main-nav]") : document.querySelector("[data-main-nav]");
+
+    if (!nav) {
+      return;
+    }
+
+    button.addEventListener("click", () => {
+      const open = nav.dataset.open !== "true";
+      nav.dataset.open = String(open);
+      button.setAttribute("aria-expanded", String(open));
+      document.body.classList.toggle("nav-open", open);
+    });
+  });
+}
+
+function markCurrentNavigation() {
+  const current = location.pathname.split("/").pop() || "index.html";
+  document.querySelectorAll("[data-main-nav] a[href]").forEach((link) => {
+    if (link.getAttribute("href") === current) {
+      link.setAttribute("aria-current", "page");
+    }
+  });
+}
+
+function bindBugForm() {
+  const form = document.querySelector("[data-bug-form]");
+
+  if (!form) {
+    return;
+  }
+
+  const message = document.querySelector("[data-bug-message]");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!window.RipSupabase || !window.RipSupabase.isConfigured()) {
+      setMessage(message, "Supabase requis pour enregistrer le bug.", "error");
+      return;
+    }
+
+    const submit = form.querySelector("button[type='submit']");
+    const data = Object.fromEntries(new FormData(form));
+    submit.disabled = true;
+    setMessage(message, "Envoi du signalement...", null);
+
+    try {
+      const client = await window.RipSupabase.getClient();
+      const { error } = await client.rpc("submit_bug_report", {
+        title_input: String(data.title || ""),
+        body_input: String(data.body || ""),
+        page_url_input: window.location.href,
+        user_agent_input: navigator.userAgent
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      form.reset();
+      setMessage(message, "Bug envoye. Merci.", "success");
+    } catch (error) {
+      console.error("Bug report:", error);
+      setMessage(message, humanSupabaseError(error, "Bug non envoye pour le moment."), "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
 function bindSignupForm() {
   const form = document.querySelector("#signup-form");
 
@@ -317,6 +419,10 @@ async function bindAccountPage() {
   }
 
   applyProfile(user);
+
+  if (window.RipAuth.profileError && window.RipAuth.profileError()) {
+    setMessage(message, humanAuthError(window.RipAuth.profileError()), "error");
+  }
 
   const form = document.querySelector("#profile-form");
   const bioInput = document.querySelector("#profile-bio");
@@ -433,7 +539,10 @@ onReady(async () => {
 
   document.addEventListener("rip-auth-change", updateAuthVisibility);
 
+  markCurrentNavigation();
   await updateAuthVisibility();
+  bindNavigationMenu();
+  bindBugForm();
   bindSignupForm();
   bindLoginForm();
   await bindAccountPage();

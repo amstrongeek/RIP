@@ -12,6 +12,7 @@
   let readyPromise = null;
   let cachedUser = null;
   let authSubscription = null;
+  let lastProfileError = null;
 
   function authError(code, cause) {
     const error = new Error(code);
@@ -229,7 +230,16 @@
     }
 
     const supabase = await getSupabase();
-    const profile = await ensureProfile(supabase, sessionUser);
+    let profile = null;
+
+    try {
+      profile = await ensureProfile(supabase, sessionUser);
+      lastProfileError = null;
+    } catch (error) {
+      console.error("Profil Supabase indisponible:", error);
+      lastProfileError = error;
+    }
+
     await supabase.rpc("touch_last_seen").catch(() => null);
     cachedUser = publicUser(sessionUser, profile);
     dispatchAuthChange();
@@ -490,11 +500,16 @@
     return cachedUser;
   }
 
+  function profileError() {
+    return lastProfileError;
+  }
+
   window.RipAuth = {
     currentUser,
     login,
     logout,
     passwordScore,
+    profileError,
     ready,
     refresh,
     register,

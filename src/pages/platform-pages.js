@@ -84,6 +84,36 @@ function setStatus(message, error = false) {
   });
 }
 
+function platformErrorMessage(error, fallback) {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+
+  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
+    return "RPC Supabase manquante : applique supabase-chat.sql complet.";
+  }
+
+  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
+    return "Table Supabase manquante : applique supabase-chat.sql complet.";
+  }
+
+  if (/column .* does not exist|42703/i.test(message)) {
+    return "Colonne Supabase manquante : migration incomplete.";
+  }
+
+  if (/permission denied|not authorized|42501|row-level security|violates row-level security|policy/i.test(message)) {
+    return "Permission Supabase refusee : verifie grants/RLS.";
+  }
+
+  return schemaMissing(error) ? "Migration Supabase incomplete." : fallback;
+}
+
+function settledValue(result, fallback) {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
+function settledErrors(results) {
+  return results.filter((result) => result.status === "rejected").map((result) => result.reason);
+}
+
 function toast(message, type = "info") {
   let stack = document.querySelector("[data-toast-stack]");
 
@@ -303,7 +333,7 @@ async function claimAchievementFromUi(achievementKey) {
     setStatus("Succes synchronises.");
   } catch (error) {
     console.error("Achievement claim error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Succes non disponible.", true);
+    setStatus(platformErrorMessage(error, "Succes non disponible."), true);
   }
 }
 
@@ -319,7 +349,7 @@ async function markNotificationFromUi(notificationId) {
     setStatus("Notification lue.");
   } catch (error) {
     console.error("Notification read error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Notification indisponible.", true);
+    setStatus(platformErrorMessage(error, "Notification indisponible."), true);
   }
 }
 function renderRecentScores(scores) {
@@ -452,7 +482,7 @@ function renderLeaderboardRows(rows) {
 }
 
 async function requirePlatform() {
-  ensureGateBox("[data-platform-setup]", "Configuration Supabase manquante", "Ajoute ton URL et ta cle publique dans supabase-config.js, puis relance le SQL Supabase si une table manque.");
+  ensureGateBox("[data-platform-setup]", "Configuration Supabase manquante", "Ajoute ton URL et ta cle publique dans supabase-config.js. Si une table manque, applique le fichier supabase-chat.sql complet dans Supabase.");
   ensureGateBox("[data-platform-login]", "Connexion requise", "Connecte-toi pour synchroniser ton profil, tes points, ton inventaire, tes scores et le tchat.", "connexion.html", "Se connecter");
 
   try {
@@ -461,7 +491,7 @@ async function requirePlatform() {
     console.error("Platform context error:", error);
     show("[data-platform-setup]", false);
     show("[data-platform-login]", false);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Session Supabase indisponible.", true);
+    setStatus(platformErrorMessage(error, "Session Supabase indisponible."), true);
     return null;
   }
 
@@ -492,31 +522,35 @@ async function initDashboard() {
     return;
   }
 
-  try {
-    const [wallet, missions, scores, shop, messages, achievements, notifications] = await Promise.all([
-      getWallet(context.client),
-      getMissions(context.client),
-      getRecentScores(context.client, context.user.id),
-      getShop(context.client),
-      getMessageStats(context.client, context.user.id),
-      getAchievements(context.client),
-      getNotifications(context.client, 6)
-    ]);
+  const results = await Promise.allSettled([
+    getWallet(context.client),
+    getMissions(context.client),
+    getRecentScores(context.client, context.user.id),
+    getShop(context.client),
+    getMessageStats(context.client, context.user.id),
+    getAchievements(context.client),
+    getNotifications(context.client, 6)
+  ]);
+  const [wallet, missions, scores, shop, messages, achievements, notifications] = results;
 
-    renderWallet(wallet);
-    renderMissions(missions);
-    renderRecentScores(scores);
-    renderShopSummary(shop);
-    renderAchievements(achievements);
-    renderNotifications(notifications);
-    text("[data-platform-message-count]", String(messages));
-    text("[data-platform-games-count]", String(scores.length));
-    setStatus("Dashboard synchronise.");
-    toast("Dashboard charge.", "success");
-  } catch (error) {
-    console.error("Dashboard error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Dashboard indisponible.", true);
+  renderWallet(settledValue(wallet, null));
+  renderMissions(settledValue(missions, []));
+  renderRecentScores(settledValue(scores, []));
+  renderShopSummary(settledValue(shop, { items: [], inventory: [] }));
+  renderAchievements(settledValue(achievements, []));
+  renderNotifications(settledValue(notifications, []));
+  text("[data-platform-message-count]", String(settledValue(messages, 0)));
+  text("[data-platform-games-count]", String(settledValue(scores, []).length));
+
+  const errors = settledErrors(results);
+  if (errors.length) {
+    console.error("Dashboard partial errors:", errors);
+    setStatus(platformErrorMessage(errors[0], "Dashboard partiellement charge."), true);
+    return;
   }
+
+  setStatus("Dashboard synchronise.");
+  toast("Dashboard charge.", "success");
 }
 
 async function initLeaderboards() {
@@ -536,7 +570,7 @@ async function initLeaderboards() {
       setStatus("Classement synchronise.");
     } catch (error) {
       console.error("Leaderboard error:", error);
-      setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Classement indisponible.", true);
+      setStatus(platformErrorMessage(error, "Classement indisponible."), true);
     }
   }
 
@@ -554,25 +588,29 @@ async function initSharedStats() {
     return;
   }
 
-  try {
-    const [wallet, missions, shop, achievements, notifications] = await Promise.all([
-      getWallet(context.client),
-      getMissions(context.client),
-      getShop(context.client),
-      getAchievements(context.client),
-      getNotifications(context.client, 6)
-    ]);
+  const results = await Promise.allSettled([
+    getWallet(context.client),
+    getMissions(context.client),
+    getShop(context.client),
+    getAchievements(context.client),
+    getNotifications(context.client, 6)
+  ]);
+  const [wallet, missions, shop, achievements, notifications] = results;
 
-    renderWallet(wallet);
-    renderMissions(missions);
-    renderShopSummary(shop);
-    renderAchievements(achievements);
-    renderNotifications(notifications);
-    setStatus("Plateforme synchronisee.");
-  } catch (error) {
-    console.error("Platform stats error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Stats indisponibles.", true);
+  renderWallet(settledValue(wallet, null));
+  renderMissions(settledValue(missions, []));
+  renderShopSummary(settledValue(shop, { items: [], inventory: [] }));
+  renderAchievements(settledValue(achievements, []));
+  renderNotifications(settledValue(notifications, []));
+
+  const errors = settledErrors(results);
+  if (errors.length) {
+    console.error("Platform partial errors:", errors);
+    setStatus(platformErrorMessage(errors[0], "Plateforme partiellement chargee."), true);
+    return;
   }
+
+  setStatus("Plateforme synchronisee.");
 }
 
 
@@ -583,20 +621,24 @@ async function initAchievementsPage() {
     return;
   }
 
-  try {
-    const [wallet, achievements, notifications] = await Promise.all([
-      getWallet(context.client),
-      getAchievements(context.client),
-      getNotifications(context.client, 8)
-    ]);
-    renderWallet(wallet);
-    renderAchievements(achievements);
-    renderNotifications(notifications);
-    setStatus("Succes synchronises.");
-  } catch (error) {
-    console.error("Achievements page error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Succes indisponibles.", true);
+  const results = await Promise.allSettled([
+    getWallet(context.client),
+    getAchievements(context.client),
+    getNotifications(context.client, 8)
+  ]);
+  const [wallet, achievements, notifications] = results;
+  renderWallet(settledValue(wallet, null));
+  renderAchievements(settledValue(achievements, []));
+  renderNotifications(settledValue(notifications, []));
+
+  const errors = settledErrors(results);
+  if (errors.length) {
+    console.error("Achievements partial errors:", errors);
+    setStatus(platformErrorMessage(errors[0], "Succes partiellement charges."), true);
+    return;
   }
+
+  setStatus("Succes synchronises.");
 }
 
 async function initNotificationsPage() {
@@ -606,20 +648,24 @@ async function initNotificationsPage() {
     return;
   }
 
-  try {
-    const [wallet, notifications, achievements] = await Promise.all([
-      getWallet(context.client),
-      getNotifications(context.client, 30),
-      getAchievements(context.client)
-    ]);
-    renderWallet(wallet);
-    renderNotifications(notifications);
-    renderAchievements(achievements);
-    setStatus("Notifications synchronisees.");
-  } catch (error) {
-    console.error("Notifications page error:", error);
-    setStatus(schemaMissing(error) ? "Relance le SQL Supabase." : "Notifications indisponibles.", true);
+  const results = await Promise.allSettled([
+    getWallet(context.client),
+    getNotifications(context.client, 30),
+    getAchievements(context.client)
+  ]);
+  const [wallet, notifications, achievements] = results;
+  renderWallet(settledValue(wallet, null));
+  renderNotifications(settledValue(notifications, []));
+  renderAchievements(settledValue(achievements, []));
+
+  const errors = settledErrors(results);
+  if (errors.length) {
+    console.error("Notifications partial errors:", errors);
+    setStatus(platformErrorMessage(errors[0], "Notifications partiellement chargees."), true);
+    return;
   }
+
+  setStatus("Notifications synchronisees.");
 }
 function markActiveNav() {
   const current = location.pathname.split("/").pop() || "index.html";

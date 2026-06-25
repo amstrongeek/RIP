@@ -6,7 +6,7 @@ import {
   setLocalReady
 } from "./src/services/room-service.js";
 
-const ARCADE_VERSION = "20260625-arcadev4";
+const ARCADE_VERSION = "20260625-riptuff1";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher", "snake", "puzzle", "rpg", "dungeon", "tycoon", "space", "platformer"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
@@ -154,7 +154,33 @@ function sleep(ms) {
 
 function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|policy|column|wallet/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|bug_reports|function|schema|permission|policy|column|wallet/i.test(message);
+}
+
+function arcadeErrorMessage(error, fallback = "Arcade indisponible.") {
+  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+
+  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
+    return "RPC Supabase manquante : applique le fichier supabase-chat.sql complet.";
+  }
+
+  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
+    return "Table Supabase manquante : applique le fichier supabase-chat.sql complet.";
+  }
+
+  if (/column .* does not exist|42703/i.test(message)) {
+    return "Colonne Supabase manquante : migration SQL incomplete.";
+  }
+
+  if (/permission denied|not authorized|42501|row-level security|violates row-level security|policy/i.test(message)) {
+    return "Permission Supabase refusee : verifie les grants/RLS.";
+  }
+
+  if (/item_already_owned/i.test(message)) {
+    return "Objet deja possede.";
+  }
+
+  return fallback;
 }
 
 function xpForLevel(level) {
@@ -588,7 +614,7 @@ async function purchaseItem(itemKey) {
     setArcadeStatus("Achat valide.");
   } catch (error) {
     console.error("Erreur achat:", error);
-    setArcadeStatus(String(error && error.message || "").includes("item_already_owned") ? "Objet deja possede." : schemaMissing(error) ? "Relance le SQL Supabase pour la boutique." : "Achat impossible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Achat impossible."), true);
   }
 }
 
@@ -609,7 +635,7 @@ async function equipItem(itemKey) {
     setArcadeStatus("Cosmetique equipe.");
   } catch (error) {
     console.error("Erreur equipement:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour l'equipement." : "Equipement impossible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Equipement impossible."), true);
   }
 }
 
@@ -633,7 +659,7 @@ async function claimDaily() {
     setArcadeStatus("Daily reward ajoute.");
   } catch (error) {
     console.error("Erreur daily:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour les points." : "Daily deja claim ou indisponible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Daily deja claim ou indisponible."), true);
   } finally {
     dailyButton.disabled = false;
   }
@@ -706,7 +732,7 @@ async function claimMission(missionKey) {
     setArcadeStatus("Mission claim.");
   } catch (error) {
     console.error("Erreur mission:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour les missions." : "Mission non disponible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Mission non disponible."), true);
   }
 }
 
@@ -787,7 +813,7 @@ async function awardSoloGame(gameKey, score) {
     return { wallet: data, rewardPoints, xp: rewardPoints * 2 };
   } catch (error) {
     console.error("Erreur score:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour les scores." : "Score non enregistre.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Score non enregistre."), true);
     return { rewardPoints: 0, xp: 0, error };
   }
 }
@@ -2319,7 +2345,7 @@ async function createDuel() {
   const { data, error } = await arcadeClient.rpc("create_game_duel");
 
   if (error) {
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour les duels." : "Creation duel impossible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Creation duel impossible."), true);
     return;
   }
 
@@ -2470,7 +2496,7 @@ async function createTtt() {
   const { data, error } = await arcadeClient.rpc("create_ttt_game");
 
   if (error) {
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour le morpion." : "Creation morpion impossible.", true);
+    setArcadeStatus(arcadeErrorMessage(error, "Creation morpion impossible."), true);
     return;
   }
 
@@ -2625,16 +2651,23 @@ async function initArcade() {
     leaderboardGame.addEventListener("change", () => loadLeaderboard(leaderboardGame.value).catch(() => null));
   }
 
-  try {
-    await loadWallet();
-    await loadShop();
-    await loadMissions();
-    await loadLeaderboard(leaderboardGame ? leaderboardGame.value : "reflex");
-    setArcadeStatus(`Arcade ${ARCADE_VERSION} prete.`);
-  } catch (error) {
-    console.error("Erreur arcade:", error);
-    setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour activer points/boutique/jeux." : "Arcade indisponible.", true);
+  const results = await Promise.allSettled([
+    loadWallet(),
+    loadShop(),
+    loadMissions(),
+    loadLeaderboard(leaderboardGame ? leaderboardGame.value : "reflex")
+  ]);
+  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+
+  console.info(`Arcade ${ARCADE_VERSION} prete.`);
+
+  if (errors.length) {
+    console.error("Arcade partiellement chargee:", errors);
+    setArcadeStatus(arcadeErrorMessage(errors[0], "Arcade chargee partiellement."), true);
+    return;
   }
+
+  setArcadeStatus("Arcade prete.");
 }
 
 onReady(() => {
