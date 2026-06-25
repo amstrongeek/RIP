@@ -2,8 +2,8 @@ const DEFAULT_ROOM_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
-const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,last_seen";
-const APP_VERSION = "20260625-coreui1";
+const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,last_seen";
+const APP_VERSION = "20260625-arcadev4";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -45,6 +45,7 @@ const profileModal = document.querySelector("[data-profile-modal]");
 const modalAvatar = document.querySelector("[data-modal-avatar]");
 const modalName = document.querySelector("[data-modal-name]");
 const modalTitle = document.querySelector("[data-modal-title]");
+const modalBadge = document.querySelector("[data-modal-badge]");
 const modalBio = document.querySelector("[data-modal-bio]");
 const modalWebsite = document.querySelector("[data-modal-website]");
 const modalStatus = document.querySelector("[data-modal-status]");
@@ -696,6 +697,12 @@ function renderProfileModal(profile) {
 
   if (modalTitle) {
     modalTitle.textContent = profile.title || "Nouveau joueur";
+  }
+
+  if (modalBadge) {
+    const badge = profile.active_badge || profile.activeBadge || "";
+    modalBadge.hidden = !badge;
+    modalBadge.textContent = badge ? `Badge ${badge}` : "";
   }
 
   if (modalBio) {

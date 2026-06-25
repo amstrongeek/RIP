@@ -1,5 +1,13 @@
-const ARCADE_VERSION = "20260625-coreui1";
-const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher"]);
+import {
+  createLocalRoom,
+  finishLocalRoom,
+  joinLocalRoom,
+  listLocalRooms,
+  setLocalReady
+} from "./src/services/room-service.js";
+
+const ARCADE_VERSION = "20260625-arcadev4";
+const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher", "snake", "puzzle", "rpg", "dungeon", "tycoon", "space", "platformer"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
 const walletLevel = document.querySelector("[data-wallet-level]");
@@ -14,6 +22,9 @@ const inventoryList = document.querySelector("[data-inventory-list]");
 const missionList = document.querySelector("[data-mission-list]");
 const leaderboardList = document.querySelector("[data-leaderboard-list]");
 const leaderboardGame = document.querySelector("[data-leaderboard-game]");
+const localRoomForm = document.querySelector("[data-local-room-form]");
+const localRoomJoinForm = document.querySelector("[data-local-room-join-form]");
+const localRoomList = document.querySelector("[data-local-room-list]");
 const arcadeModal = document.querySelector("[data-arcade-modal]");
 const arcadeTitle = document.querySelector("[data-arcade-title]");
 const arcadeScore = document.querySelector("[data-arcade-score]");
@@ -32,6 +43,14 @@ let tttPoll = null;
 let duelDoneSeen = false;
 let tttDoneSeen = false;
 let arcadeLaunchersBound = false;
+let lastShopItems = [];
+let lastInventory = [];
+let equippedItemsBySlot = new Map();
+const shopState = {
+  category: "all",
+  rarity: "all",
+  query: ""
+};
 
 function onReady(callback) {
   if (document.readyState === "loading") {
@@ -135,7 +154,7 @@ function sleep(ms) {
 
 function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|policy|column|wallet/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|game_duels|tic_tac_toe_games|user_missions|user_achievements|user_notifications|function|schema|permission|policy|column|wallet/i.test(message);
 }
 
 function xpForLevel(level) {
@@ -198,7 +217,7 @@ async function loadShop() {
   const [{ data: items, error: itemError }, { data: inventory, error: inventoryError }] = await Promise.all([
     arcadeClient
       .from("shop_items")
-      .select("item_key,name,description,price,item_type,payload,sort_order")
+      .select("item_key,name,description,price,item_type,payload,sort_order,rarity,category,equip_slot")
       .order("sort_order", { ascending: true }),
     arcadeClient
       .from("user_inventory")
@@ -210,8 +229,149 @@ async function loadShop() {
     throw itemError || inventoryError;
   }
 
-  renderShop(items || [], inventory || []);
-  renderInventory(items || [], inventory || []);
+  lastShopItems = items || [];
+  lastInventory = inventory || [];
+  syncEquippedItems(lastShopItems, lastInventory);
+  ensureShopFilters();
+  renderShop(lastShopItems, lastInventory);
+  renderInventory(lastShopItems, lastInventory);
+}
+
+function normalizeItemPayload(item) {
+  if (!item || !item.payload) {
+    return {};
+  }
+
+  if (typeof item.payload !== "string") {
+    return item.payload;
+  }
+
+  try {
+    return JSON.parse(item.payload || "{}");
+  } catch (error) {
+    return {};
+  }
+}
+
+function syncEquippedItems(items, inventory) {
+  equippedItemsBySlot = new Map();
+  const itemByKey = new Map(items.map((item) => [item.item_key, item]));
+
+  inventory.forEach((entry) => {
+    if (!entry.equipped) {
+      return;
+    }
+
+    const item = itemByKey.get(entry.item_key);
+    if (!item) {
+      return;
+    }
+
+    const slot = item.equip_slot || item.item_type;
+    equippedItemsBySlot.set(slot, item);
+  });
+}
+
+function getEquippedSkin(gameKey) {
+  const item = equippedItemsBySlot.get(`skin_${gameKey}`);
+  const payload = normalizeItemPayload(item);
+  return payload.skin || "default";
+}
+
+function itemRarityLabel(rarity) {
+  const labels = {
+    common: "Commun",
+    rare: "Rare",
+    epic: "Epique",
+    legendary: "Legendaire"
+  };
+  return labels[rarity] || "Commun";
+}
+
+function ensureShopFilters() {
+  if (!shopList || document.querySelector("[data-shop-filters]")) {
+    return;
+  }
+
+  const filters = createElement("div", "shop-filters");
+  filters.dataset.shopFilters = "";
+
+  const search = createElement("input", "panel-search");
+  search.type = "search";
+  search.placeholder = "Rechercher item...";
+  search.addEventListener("input", () => {
+    shopState.query = search.value.trim().toLowerCase();
+    renderShop(lastShopItems, lastInventory);
+  });
+
+  const category = createElement("select", "panel-search");
+  [
+    ["all", "Toutes categories"],
+    ["name", "Pseudos"],
+    ["avatar", "Avatars"],
+    ["theme", "Themes"],
+    ["badge", "Badges"],
+    ["title", "Titres"],
+    ["skin", "Skins jeux"]
+  ].forEach(([value, label]) => {
+    const option = createElement("option", "", label);
+    option.value = value;
+    category.append(option);
+  });
+  category.addEventListener("change", () => {
+    shopState.category = category.value;
+    renderShop(lastShopItems, lastInventory);
+  });
+
+  const rarity = createElement("select", "panel-search");
+  [
+    ["all", "Toutes raretes"],
+    ["common", "Commun"],
+    ["rare", "Rare"],
+    ["epic", "Epique"],
+    ["legendary", "Legendaire"]
+  ].forEach(([value, label]) => {
+    const option = createElement("option", "", label);
+    option.value = value;
+    rarity.append(option);
+  });
+  rarity.addEventListener("change", () => {
+    shopState.rarity = rarity.value;
+    renderShop(lastShopItems, lastInventory);
+  });
+
+  filters.append(search, category, rarity);
+  shopList.before(filters);
+}
+
+function createItemPreview(item) {
+  const preview = createElement("div", "shop-preview");
+  const payload = normalizeItemPayload(item);
+  preview.dataset.rarity = item.rarity || "common";
+  preview.dataset.type = item.item_type || "cosmetic";
+
+  if (item.item_type === "name_style") {
+    preview.classList.add("display-name");
+    preview.dataset.nameStyle = payload.name_style || "solid";
+    preview.style.setProperty("--name-color-a", payload.name_color_a || "#39ff88");
+    preview.style.setProperty("--name-color-b", payload.name_color_b || "#ffdc5e");
+    preview.textContent = "RIP";
+  } else if (item.item_type === "avatar_frame") {
+    preview.dataset.avatarFrame = payload.frame || "none";
+    preview.textContent = "A";
+  } else if (item.item_type === "theme") {
+    preview.textContent = "THEME";
+  } else if (item.item_type === "badge") {
+    preview.textContent = payload.badge || "BADGE";
+  } else if (item.item_type === "title") {
+    preview.textContent = payload.title || "TITLE";
+  } else if (item.item_type === "game_skin") {
+    preview.textContent = (payload.game || "SKIN").slice(0, 5).toUpperCase();
+  } else {
+    preview.textContent = "ITEM";
+  }
+
+  return preview;
 }
 
 function renderShop(items, inventory) {
@@ -221,29 +381,43 @@ function renderShop(items, inventory) {
 
   shopList.replaceChildren();
 
-  if (!items.length) {
+  const owned = new Map(inventory.map((item) => [item.item_key, item]));
+  const visibleItems = items.filter((item) => {
+    const text = `${item.name} ${item.description} ${item.item_key}`.toLowerCase();
+    const category = item.category || "cosmetic";
+    const rarity = item.rarity || "common";
+    return (!shopState.query || text.includes(shopState.query))
+      && (shopState.category === "all" || category === shopState.category)
+      && (shopState.rarity === "all" || rarity === shopState.rarity);
+  });
+
+  if (!visibleItems.length) {
     shopList.textContent = "Boutique vide.";
     return;
   }
 
-  const owned = new Map(inventory.map((item) => [item.item_key, item]));
-
-  items.forEach((item) => {
+  visibleItems.forEach((item) => {
     const row = createElement("div", "shop-item");
+    row.dataset.rarity = item.rarity || "common";
     const title = createElement("strong", "", item.name);
     const description = createElement("small", "", item.description);
-    const price = createElement("small", "", `${item.price} RIP coins`);
+    const meta = createElement("div", "shop-meta");
+    meta.append(
+      createElement("span", "tag", itemRarityLabel(item.rarity)),
+      createElement("span", "tag", item.category || item.item_type),
+      createElement("span", "tag", `${item.price} coins`)
+    );
     const isOwned = owned.has(item.item_key);
     const buy = createButton(isOwned ? "Possede" : "Acheter", () => purchaseItem(item.item_key), "game-button secondary");
     buy.disabled = isOwned;
 
-    row.append(title, description, price, buy);
+    row.append(createItemPreview(item), title, description, meta, buy);
     shopList.append(row);
   });
 }
 
 function canEquip(item) {
-  return item && ["name_style", "avatar_frame", "theme"].includes(item.item_type);
+  return item && ["name_style", "avatar_frame", "theme", "badge", "title", "avatar_color", "game_skin"].includes(item.item_type);
 }
 
 function renderInventory(items, inventory) {
@@ -263,9 +437,13 @@ function renderInventory(items, inventory) {
   inventory.forEach((entry) => {
     const item = itemByKey.get(entry.item_key);
     const row = createElement("div", "inventory-item");
+    if (item) {
+      row.dataset.rarity = item.rarity || "common";
+    }
     row.append(
+      item ? createItemPreview(item) : createElement("div", "shop-preview", "?"),
       createElement("strong", "", item ? item.name : entry.item_key),
-      createElement("small", "", `Quantite : ${entry.quantity}${entry.equipped ? " / equipe" : ""}`)
+      createElement("small", "", `Quantite : ${entry.quantity}${entry.equipped ? " / equipe" : ""}${item && item.equip_slot ? ` / slot ${item.equip_slot}` : ""}`)
     );
 
     if (canEquip(item)) {
@@ -276,6 +454,73 @@ function renderInventory(items, inventory) {
 
     inventoryList.append(row);
   });
+}
+
+function renderLocalRooms() {
+  if (!localRoomList) {
+    return;
+  }
+
+  const rooms = listLocalRooms();
+  localRoomList.replaceChildren();
+
+  if (!rooms.length) {
+    localRoomList.textContent = "Aucun salon local.";
+    return;
+  }
+
+  rooms.forEach((room) => {
+    const row = createElement("div", "local-room-item");
+    const players = room.players.map((player) => `${player.ready ? "OK " : ""}${player.pseudo}`).join(", ");
+    row.append(
+      createElement("strong", "", `${room.code} / ${room.gameKey}`),
+      createElement("small", "", `Etat : ${room.status}`),
+      createElement("small", "", players || "Aucun joueur")
+    );
+
+    const actions = createElement("div", "mini-actions");
+    actions.append(
+      createButton("Pret", () => {
+        setLocalReady(room.code, arcadeUser, true);
+        renderLocalRooms();
+      }, "game-button secondary"),
+      createButton("Terminer", () => {
+        finishLocalRoom(room.code);
+        renderLocalRooms();
+      }, "game-button secondary")
+    );
+    row.append(actions);
+    localRoomList.append(row);
+  });
+}
+
+function bindLocalRooms() {
+  if (localRoomForm) {
+    localRoomForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const game = new FormData(localRoomForm).get("game") || "snake";
+      const room = createLocalRoom(String(game), arcadeUser);
+      setArcadeStatus(`Salon local cree : ${room.code}. Simulation locale, pas encore Socket.IO.`);
+      renderLocalRooms();
+    });
+  }
+
+  if (localRoomJoinForm) {
+    localRoomJoinForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const code = new FormData(localRoomJoinForm).get("code");
+
+      try {
+        const room = joinLocalRoom(code, arcadeUser);
+        setArcadeStatus(`Salon local rejoint : ${room.code}.`);
+        renderLocalRooms();
+      } catch (error) {
+        setArcadeStatus("Salon local introuvable.", true);
+      }
+    });
+  }
+
+  renderLocalRooms();
 }
 
 function applyProfileCosmetics(profile) {
@@ -297,6 +542,20 @@ function applyProfileCosmetics(profile) {
 
   document.querySelectorAll("[data-self-avatar], [data-profile-avatar]").forEach((element) => {
     element.dataset.avatarFrame = avatarFrame;
+  });
+
+  document.querySelectorAll("[data-account-title], [data-platform-title]").forEach((element) => {
+    element.textContent = profile.title || "Nouveau joueur";
+  });
+
+  document.querySelectorAll("[data-account-badge], [data-platform-badge]").forEach((element) => {
+    const badge = profile.active_badge || profile.activeBadge || "";
+    element.hidden = !badge;
+    element.textContent = badge ? `Badge ${badge}` : "";
+  });
+
+  document.querySelectorAll("[data-account-badge-separator]").forEach((element) => {
+    element.hidden = !(profile.active_badge || profile.activeBadge);
   });
 
   document.body.dataset.profileTheme = theme;
@@ -499,7 +758,7 @@ async function loadLeaderboard(gameKey = "reflex") {
 
 async function awardSoloGame(gameKey, score) {
   if (!SOLO_GAMES.has(gameKey) || !arcadeClient || !arcadeUser) {
-    return;
+    return { rewardPoints: 0, xp: 0 };
   }
 
   try {
@@ -512,23 +771,1089 @@ async function awardSoloGame(gameKey, score) {
       throw error;
     }
 
+    const { data: scoreRow } = await arcadeClient
+      .from("game_scores")
+      .select("reward_points")
+      .eq("user_id", arcadeUser.id)
+      .eq("game_key", gameKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const rewardPoints = scoreRow ? Number(scoreRow.reward_points || 0) : 0;
     renderWallet(data);
     await Promise.all([loadLeaderboard(gameKey), loadMissions()]);
     setArcadeStatus(`Score envoye : ${Math.round(score)}.`);
+    return { wallet: data, rewardPoints, xp: rewardPoints * 2 };
   } catch (error) {
     console.error("Erreur score:", error);
     setArcadeStatus(schemaMissing(error) ? "Relance le SQL Supabase pour les scores." : "Score non enregistre.", true);
+    return { rewardPoints: 0, xp: 0, error };
   }
 }
 
 function finishGame(gameKey, score, message) {
   setArcadeScore(score);
+  const result = createElement("div", "game-result");
+  result.append(
+    createElement("p", "game-message", `${message} Score final : ${score}`),
+    createElement("small", "", "Envoi du score a Supabase...")
+  );
   arcadeControls.replaceChildren(
     createButton("Rejouer", () => startGame(gameKey)),
     createButton("Fermer", closeArcade, "game-button secondary")
   );
-  arcadeStage.replaceChildren(createElement("p", "game-message", `${message} Score : ${score}`));
-  awardSoloGame(gameKey, score);
+  arcadeStage.replaceChildren(result);
+  awardSoloGame(gameKey, score).then((award) => {
+    const status = award && !award.error
+      ? `+${award.rewardPoints} coins / +${award.xp} XP.`
+      : "Score non enregistre.";
+    result.append(createElement("strong", "reward-line", status));
+  });
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function randomInt(min, max) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+
+async function getBestScore(gameKey) {
+  if (!arcadeClient || !arcadeUser) {
+    return 0;
+  }
+
+  const { data } = await arcadeClient
+    .from("game_scores")
+    .select("score")
+    .eq("user_id", arcadeUser.id)
+    .eq("game_key", gameKey)
+    .order("score", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data ? Number(data.score || 0) : 0;
+}
+
+function showGameIntro(config, startHandler) {
+  openArcade(config.title);
+  const box = createElement("div", "game-intro");
+  const rules = createElement("ul", "game-rules");
+  const best = createElement("small", "game-best", "Meilleur score : chargement...");
+
+  config.rules.forEach((rule) => {
+    rules.append(createElement("li", "", rule));
+  });
+
+  box.append(
+    createElement("h3", "", config.title),
+    createElement("p", "game-message", config.description),
+    rules,
+    best
+  );
+
+  arcadeStage.replaceChildren(box);
+  arcadeControls.replaceChildren(
+    createButton("Jouer", startHandler),
+    createButton("Fermer", closeArcade, "game-button secondary")
+  );
+
+  getBestScore(config.key)
+    .then((score) => {
+      best.textContent = `Meilleur score : ${score}`;
+    })
+    .catch(() => {
+      best.textContent = "Meilleur score : indisponible";
+    });
+}
+
+function createHud() {
+  const hud = createElement("div", "game-hud");
+  return {
+    element: hud,
+    set(values) {
+      hud.replaceChildren();
+      Object.entries(values).forEach(([label, value]) => {
+        const item = createElement("span", "", `${label}: ${value}`);
+        hud.append(item);
+      });
+    }
+  };
+}
+
+function makePauseControl(isPaused, setPaused) {
+  return createButton("Pause", () => {
+    const next = !isPaused();
+    setPaused(next);
+  }, "game-button secondary");
+}
+
+function startSnakeGame() {
+  showGameIntro({
+    key: "snake",
+    title: "Snake moderne",
+    description: "Mange les pixels, recupere les power-ups et evite de toucher ton propre corps.",
+    rules: [
+      "Fleches ou ZQSD pour tourner.",
+      "La vitesse augmente a chaque nourriture.",
+      "Les power-ups donnent bonus, slow ou croissance."
+    ]
+  }, runSnakeGame);
+}
+
+function runSnakeGame() {
+  openArcade("Snake moderne");
+  const size = 17;
+  const skin = getEquippedSkin("snake");
+  const hud = createHud();
+  const board = createElement("div", "snake-board");
+  board.dataset.skin = skin;
+  board.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  const cells = Array.from({ length: size * size }, () => {
+    const cell = createElement("span", "snake-cell");
+    board.append(cell);
+    return cell;
+  });
+
+  let snake = [{ x: 8, y: 8 }, { x: 7, y: 8 }, { x: 6, y: 8 }];
+  let dir = { x: 1, y: 0 };
+  let nextDir = dir;
+  let food = null;
+  let power = null;
+  let score = 0;
+  let speed = 175;
+  let running = true;
+  let paused = false;
+
+  function occupied(point) {
+    return snake.some((part) => part.x === point.x && part.y === point.y);
+  }
+
+  function randomFree() {
+    let point = { x: randomInt(0, size - 1), y: randomInt(0, size - 1) };
+    let guard = 0;
+    while (occupied(point) && guard < 200) {
+      point = { x: randomInt(0, size - 1), y: randomInt(0, size - 1) };
+      guard += 1;
+    }
+    return point;
+  }
+
+  function draw() {
+    cells.forEach((cell) => {
+      cell.className = "snake-cell";
+      cell.textContent = "";
+    });
+
+    snake.forEach((part, index) => {
+      const cell = cells[part.y * size + part.x];
+      cell.classList.add(index === 0 ? "snake-head" : "snake-body");
+    });
+
+    if (food) {
+      cells[food.y * size + food.x].classList.add("snake-food");
+    }
+
+    if (power) {
+      const cell = cells[power.y * size + power.x];
+      cell.classList.add("snake-power");
+      cell.textContent = power.type === "slow" ? "S" : power.type === "grow" ? "G" : "+";
+    }
+
+    hud.set({ Score: score, Vitesse: `${Math.round(1000 / speed * 10) / 10}x`, Skin: skin });
+    setArcadeScore(score);
+  }
+
+  function turn(x, y) {
+    if (dir.x + x === 0 && dir.y + y === 0) {
+      return;
+    }
+    nextDir = { x, y };
+  }
+
+  function end(reason) {
+    running = false;
+    finishGame("snake", score, reason);
+  }
+
+  function step() {
+    if (!running) {
+      return;
+    }
+
+    if (paused) {
+      addTimer(window.setTimeout(step, 120));
+      return;
+    }
+
+    dir = nextDir;
+    const head = snake[0];
+    const next = { x: head.x + dir.x, y: head.y + dir.y };
+
+    if (next.x < 0 || next.y < 0 || next.x >= size || next.y >= size || occupied(next)) {
+      end("Snake termine.");
+      return;
+    }
+
+    snake.unshift(next);
+
+    if (food && next.x === food.x && next.y === food.y) {
+      score += 120 + snake.length * 4;
+      speed = Math.max(78, speed - 5);
+      food = randomFree();
+      if (!power && Math.random() < 0.32) {
+        power = { ...randomFree(), type: ["bonus", "slow", "grow"][randomInt(0, 2)] };
+      }
+    } else if (power && next.x === power.x && next.y === power.y) {
+      score += power.type === "bonus" ? 450 : 250;
+      if (power.type === "slow") {
+        speed = Math.min(210, speed + 45);
+      }
+      if (power.type !== "grow") {
+        snake.pop();
+      }
+      power = null;
+    } else {
+      snake.pop();
+    }
+
+    draw();
+    addTimer(window.setTimeout(step, speed));
+  }
+
+  const keyHandler = (event) => {
+    const key = event.key.toLowerCase();
+    if (key === "arrowup" || key === "z" || key === "w") turn(0, -1);
+    if (key === "arrowdown" || key === "s") turn(0, 1);
+    if (key === "arrowleft" || key === "q" || key === "a") turn(-1, 0);
+    if (key === "arrowright" || key === "d") turn(1, 0);
+  };
+  document.addEventListener("keydown", keyHandler);
+  gameCleanups.push(() => document.removeEventListener("keydown", keyHandler));
+
+  food = randomFree();
+  arcadeStage.replaceChildren(hud.element, board);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Haut", () => turn(0, -1), "game-button secondary"),
+    createButton("Gauche", () => turn(-1, 0), "game-button secondary"),
+    createButton("Droite", () => turn(1, 0), "game-button secondary"),
+    createButton("Bas", () => turn(0, 1), "game-button secondary"),
+    pause,
+    createButton("Quitter", closeArcade, "game-button secondary")
+  );
+  draw();
+  step();
+}
+
+function startPuzzleGame() {
+  showGameIntro({
+    key: "puzzle",
+    title: "Puzzle Slider",
+    description: "Remets les cases dans l'ordre avec le moins de mouvements possible.",
+    rules: [
+      "Choisis une difficulte puis deplace les cases autour du trou.",
+      "Le chrono et les mouvements reduisent le score.",
+      "3x3 rapide, 4x4 standard, 5x5 expert."
+    ]
+  }, () => {
+    const box = createElement("div", "duel-box");
+    box.append(createElement("p", "game-message", "Choisis la taille du puzzle."));
+    arcadeStage.replaceChildren(box);
+    arcadeControls.replaceChildren(
+      createButton("3x3", () => runPuzzleGame(3)),
+      createButton("4x4", () => runPuzzleGame(4)),
+      createButton("5x5", () => runPuzzleGame(5)),
+      createButton("Fermer", closeArcade, "game-button secondary")
+    );
+  });
+}
+
+function runPuzzleGame(size) {
+  openArcade(`Puzzle Slider ${size}x${size}`);
+  const total = size * size;
+  const hud = createHud();
+  const grid = createElement("div", "puzzle-grid");
+  grid.dataset.skin = getEquippedSkin("puzzle");
+  grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  let tiles = Array.from({ length: total }, (_, index) => index);
+  let moves = 0;
+  let seconds = 0;
+  let paused = false;
+  let finished = false;
+
+  function neighbors(blank) {
+    const x = blank % size;
+    const y = Math.floor(blank / size);
+    return [
+      { x: x - 1, y },
+      { x: x + 1, y },
+      { x, y: y - 1 },
+      { x, y: y + 1 }
+    ].filter((point) => point.x >= 0 && point.y >= 0 && point.x < size && point.y < size)
+      .map((point) => point.y * size + point.x);
+  }
+
+  function shufflePuzzle() {
+    let blank = total - 1;
+    for (let index = 0; index < total * 40; index += 1) {
+      const options = neighbors(blank);
+      const pick = options[randomInt(0, options.length - 1)];
+      [tiles[blank], tiles[pick]] = [tiles[pick], tiles[blank]];
+      blank = pick;
+    }
+  }
+
+  function isSolved() {
+    return tiles.every((value, index) => value === index);
+  }
+
+  function scoreValue() {
+    return Math.max(80, Math.round(size * size * 420 - moves * 24 - seconds * 9));
+  }
+
+  function render() {
+    grid.replaceChildren();
+    tiles.forEach((value, index) => {
+      const tile = createElement("button", value === total - 1 ? "puzzle-tile empty" : "puzzle-tile", value === total - 1 ? "" : String(value + 1));
+      tile.type = "button";
+      tile.disabled = paused || finished || value === total - 1;
+      tile.addEventListener("click", () => {
+        const blank = tiles.indexOf(total - 1);
+        if (!neighbors(blank).includes(index)) {
+          return;
+        }
+        [tiles[blank], tiles[index]] = [tiles[index], tiles[blank]];
+        moves += 1;
+        setArcadeScore(scoreValue());
+        if (isSolved()) {
+          finished = true;
+          finishGame("puzzle", scoreValue(), "Puzzle resolu.");
+          return;
+        }
+        render();
+      });
+      grid.append(tile);
+    });
+
+    hud.set({ Temps: `${seconds}s`, Mouvements: moves, Score: scoreValue() });
+  }
+
+  shufflePuzzle();
+  const timer = addTimer(window.setInterval(() => {
+    if (!paused && !finished) {
+      seconds += 1;
+      setArcadeScore(scoreValue());
+      render();
+    }
+  }, 1000), true);
+  gameCleanups.push(() => window.clearInterval(timer));
+
+  arcadeStage.replaceChildren(hud.element, grid);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+    render();
+  });
+  arcadeControls.replaceChildren(pause, createButton("Restart", () => runPuzzleGame(size)), createButton("Quitter", closeArcade, "game-button secondary"));
+  render();
+}
+
+function startRpgGame() {
+  showGameIntro({
+    key: "rpg",
+    title: "Mini RPG",
+    description: "Enchaine les combats, gere tes potions et bats le boss.",
+    rules: [
+      "Attaque pour jouer safe, competence pour burst avec mana.",
+      "Les ennemis donnent XP et loot cosmétique local.",
+      "Le score depend des ennemis vaincus, de tes PV et du loot."
+    ]
+  }, runRpgGame);
+}
+
+function runRpgGame() {
+  openArcade("Mini RPG");
+  const hud = createHud();
+  const log = createElement("div", "game-log");
+  const arena = createElement("div", "rpg-arena");
+  const pet = getEquippedSkin("rpg") === "wisp" ? "Wisp actif" : "Aucun pet";
+  const enemies = [
+    { name: "Slime glitch", hp: 38, atk: 8, xp: 80 },
+    { name: "Bandit pixel", hp: 62, atk: 12, xp: 140 },
+    { name: "Dragon cache", hp: 120, atk: 18, xp: 320 }
+  ];
+  let hero = { hp: 120, maxHp: 120, mana: 4, potions: 2 };
+  let enemyIndex = 0;
+  let enemy = { ...enemies[enemyIndex] };
+  let score = 0;
+  let xp = 0;
+  let loot = [];
+  let paused = false;
+
+  function push(text) {
+    log.prepend(createElement("p", "", text));
+  }
+
+  function render() {
+    arena.replaceChildren(
+      createElement("strong", "", `Hero ${hero.hp}/${hero.maxHp} HP / Mana ${hero.mana}`),
+      createElement("strong", "", `${enemy.name} ${enemy.hp} HP`),
+      createElement("small", "", `${pet} / Loot : ${loot.join(", ") || "rien"}`)
+    );
+    hud.set({ Score: score, XP: xp, Potions: hero.potions });
+    setArcadeScore(score);
+  }
+
+  function enemyTurn() {
+    if (enemy.hp <= 0) {
+      return;
+    }
+    const damage = randomInt(enemy.atk - 3, enemy.atk + 5);
+    hero.hp = Math.max(0, hero.hp - damage);
+    push(`${enemy.name} inflige ${damage}.`);
+    if (hero.hp <= 0) {
+      finishGame("rpg", score, "Defaite RPG.");
+      return;
+    }
+    render();
+  }
+
+  function defeatEnemy() {
+    score += enemy.xp * 3 + hero.hp * 2;
+    xp += enemy.xp;
+    const drops = ["Fragment neon", "Rune pixel", "Potion vide", "Badge casse"];
+    loot.push(drops[randomInt(0, drops.length - 1)]);
+    push(`${enemy.name} vaincu. Loot obtenu.`);
+    enemyIndex += 1;
+    if (enemyIndex >= enemies.length) {
+      finishGame("rpg", score + hero.hp * 12 + loot.length * 180, "Boss battu.");
+      return;
+    }
+    enemy = { ...enemies[enemyIndex] };
+    hero.mana = Math.min(5, hero.mana + 1);
+    render();
+  }
+
+  function hit(power) {
+    if (paused || hero.hp <= 0) {
+      return;
+    }
+    const damage = power === "skill" ? randomInt(24, 38) : randomInt(12, 22);
+    if (power === "skill") {
+      if (hero.mana <= 0) {
+        push("Pas assez de mana.");
+        return;
+      }
+      hero.mana -= 1;
+    }
+    enemy.hp = Math.max(0, enemy.hp - damage);
+    push(`Tu infliges ${damage}.`);
+    if (enemy.hp <= 0) {
+      defeatEnemy();
+      return;
+    }
+    enemyTurn();
+  }
+
+  function potion() {
+    if (paused || hero.potions <= 0) {
+      return;
+    }
+    hero.potions -= 1;
+    hero.hp = Math.min(hero.maxHp, hero.hp + 42);
+    push("Potion utilisee.");
+    enemyTurn();
+  }
+
+  arcadeStage.replaceChildren(hud.element, arena, log);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Attaque", () => hit("attack")),
+    createButton("Competence", () => hit("skill")),
+    createButton("Potion", potion, "game-button secondary"),
+    pause,
+    createButton("Quitter", closeArcade, "game-button secondary")
+  );
+  push("Le combat commence.");
+  render();
+}
+
+function startDungeonGame() {
+  showGameIntro({
+    key: "dungeon",
+    title: "Dungeon Runner",
+    description: "Traverse 10 salles avec evenements aleatoires puis bats le boss.",
+    rules: [
+      "Chaque salle peut contenir monstre, coffre, piege ou sanctuaire.",
+      "Garde tes PV pour le boss final.",
+      "Le score depend de la profondeur, du loot et des PV restants."
+    ]
+  }, runDungeonGame);
+}
+
+function runDungeonGame() {
+  openArcade("Dungeon Runner");
+  const hud = createHud();
+  const log = createElement("div", "game-log");
+  let room = 0;
+  let hp = 110;
+  let potions = 1;
+  let loot = 0;
+  let score = 0;
+  let paused = false;
+
+  function push(text) {
+    log.prepend(createElement("p", "", text));
+  }
+
+  function render() {
+    hud.set({ Salle: `${room}/10`, HP: hp, Loot: loot, Score: score });
+    setArcadeScore(score);
+  }
+
+  function end(text) {
+    finishGame("dungeon", Math.max(40, score + loot * 120 + hp * 8), text);
+  }
+
+  function nextRoom() {
+    if (paused || hp <= 0) {
+      return;
+    }
+
+    room += 1;
+    if (room >= 10) {
+      const bossDamage = randomInt(28, 52);
+      hp -= bossDamage;
+      score += 900;
+      push(`Boss final. Degats recus : ${bossDamage}.`);
+      if (hp <= 0) {
+        end("Le boss t'a stoppe.");
+      } else {
+        end("Donjon termine.");
+      }
+      return;
+    }
+
+    const event = ["monster", "chest", "trap", "shrine"][randomInt(0, 3)];
+    if (event === "monster") {
+      const damage = randomInt(10, 24);
+      hp -= damage;
+      score += 260;
+      push(`Monstre battu, ${damage} degats recus.`);
+    } else if (event === "chest") {
+      const gain = randomInt(1, 3);
+      loot += gain;
+      score += gain * 180;
+      push(`Coffre trouve : +${gain} loot.`);
+    } else if (event === "trap") {
+      const damage = randomInt(8, 28);
+      hp -= damage;
+      score += 90;
+      push(`Piege detecte trop tard : -${damage} HP.`);
+    } else {
+      hp = Math.min(120, hp + 18);
+      potions += Math.random() < 0.35 ? 1 : 0;
+      score += 120;
+      push("Sanctuaire : soin recu.");
+    }
+
+    if (hp <= 0) {
+      end("Tu tombes dans le donjon.");
+      return;
+    }
+
+    render();
+  }
+
+  function usePotion() {
+    if (paused || potions <= 0) {
+      return;
+    }
+    potions -= 1;
+    hp = Math.min(120, hp + 38);
+    push("Potion utilisee.");
+    render();
+  }
+
+  arcadeStage.replaceChildren(hud.element, log);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Avancer", nextRoom),
+    createButton("Potion", usePotion, "game-button secondary"),
+    pause,
+    createButton("Quitter", closeArcade, "game-button secondary")
+  );
+  push("Entree du donjon.");
+  render();
+}
+
+function startTycoonGame() {
+  showGameIntro({
+    key: "tycoon",
+    title: "Tycoon Idle",
+    description: "Session courte de gestion: cree des points virtuels, achete des upgrades, encaisse un score plafonne.",
+    rules: [
+      "Les points tycoon ne sont pas des RIP coins directs.",
+      "Seul le score final est envoye a Supabase.",
+      "La recompense globale est plafonnee pour eviter les abus."
+    ]
+  }, runTycoonGame);
+}
+
+function runTycoonGame() {
+  openArcade("Tycoon Idle");
+  const hud = createHud();
+  const panel = createElement("div", "tycoon-panel");
+  let credits = 0;
+  let perSecond = 1;
+  let clickPower = 1;
+  let upgrades = 0;
+  let timeLeft = 90;
+  let paused = false;
+  let ended = false;
+
+  function scoreValue() {
+    return Math.max(20, Math.round(credits * 8 + upgrades * 260 + perSecond * 180 + clickPower * 90));
+  }
+
+  function render() {
+    panel.replaceChildren(
+      createElement("strong", "", `${Math.floor(credits)} credits virtuels`),
+      createElement("small", "", `${perSecond}/s / clic +${clickPower} / upgrades ${upgrades}`),
+      createElement("small", "", "Ces credits ne sont pas des RIP coins.")
+    );
+    hud.set({ Temps: `${timeLeft}s`, Score: scoreValue(), Prod: `${perSecond}/s` });
+    setArcadeScore(scoreValue());
+  }
+
+  function buyGen() {
+    const cost = 18 + upgrades * 14;
+    if (paused || credits < cost) {
+      return;
+    }
+    credits -= cost;
+    perSecond += 1 + Math.floor(upgrades / 4);
+    upgrades += 1;
+    render();
+  }
+
+  function buyClick() {
+    const cost = 12 + clickPower * 10;
+    if (paused || credits < cost) {
+      return;
+    }
+    credits -= cost;
+    clickPower += 1;
+    upgrades += 1;
+    render();
+  }
+
+  function end() {
+    if (ended) {
+      return;
+    }
+    ended = true;
+    finishGame("tycoon", Math.min(80000, scoreValue()), "Session Tycoon terminee.");
+  }
+
+  addTimer(window.setInterval(() => {
+    if (paused || ended) {
+      return;
+    }
+    credits += perSecond;
+    timeLeft -= 1;
+    if (timeLeft <= 0) {
+      end();
+      return;
+    }
+    render();
+  }, 1000), true);
+
+  arcadeStage.replaceChildren(hud.element, panel);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Collecter", () => {
+      if (!paused) {
+        credits += clickPower;
+        render();
+      }
+    }),
+    createButton("Upgrade prod", buyGen),
+    createButton("Upgrade clic", buyClick),
+    pause,
+    createButton("Encaisser", end, "game-button secondary")
+  );
+  render();
+}
+
+function startSpaceGame() {
+  showGameIntro({
+    key: "space",
+    title: "Space Shooter",
+    description: "Survis aux vagues, recupere les power-ups et detruis le boss.",
+    rules: [
+      "Fleches/QD pour bouger, espace pour tirer.",
+      "Les power-ups reparents ou accelerent le tir.",
+      "Le boss arrive apres quelques vagues."
+    ]
+  }, runSpaceGame);
+}
+
+function runSpaceGame() {
+  openArcade("Space Shooter");
+  const hud = createHud();
+  const canvas = createElement("canvas", "game-canvas");
+  canvas.width = 520;
+  canvas.height = 340;
+  const ctx = canvas.getContext("2d");
+  const skin = getEquippedSkin("space");
+  const keys = new Set();
+  let player = { x: 245, y: 292, w: 30, h: 24, hp: 4, cooldown: 0 };
+  let bullets = [];
+  let enemies = [];
+  let powers = [];
+  let boss = null;
+  let frame = 0;
+  let score = 0;
+  let paused = false;
+  let ended = false;
+  let raf = 0;
+
+  function rects(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function shoot() {
+    if (player.cooldown > 0 || paused || ended) {
+      return;
+    }
+    bullets.push({ x: player.x + player.w / 2 - 3, y: player.y - 8, w: 6, h: 12, vy: -7 });
+    player.cooldown = skin === "comet" ? 7 : 10;
+  }
+
+  function drawRect(rect, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
+
+  function end(text) {
+    if (ended) {
+      return;
+    }
+    ended = true;
+    window.cancelAnimationFrame(raf);
+    finishGame("space", score + player.hp * 220, text);
+  }
+
+  function loop() {
+    if (ended) {
+      return;
+    }
+
+    raf = window.requestAnimationFrame(loop);
+    if (paused) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffdc5e";
+      ctx.fillText("PAUSE", 230, 170);
+      return;
+    }
+
+    frame += 1;
+    player.cooldown = Math.max(0, player.cooldown - 1);
+    if (keys.has("arrowleft") || keys.has("q") || keys.has("a")) player.x -= 5;
+    if (keys.has("arrowright") || keys.has("d")) player.x += 5;
+    if (keys.has(" ")) shoot();
+    player.x = clamp(player.x, 0, canvas.width - player.w);
+
+    if (frame % 42 === 0) {
+      enemies.push({ x: randomInt(20, canvas.width - 42), y: -24, w: 28, h: 22, hp: 1 + Math.floor(frame / 650), vy: 1.6 + frame / 1600 });
+    }
+    if (!boss && frame > 1600) {
+      boss = { x: 185, y: 22, w: 150, h: 42, hp: 35, vx: 2.2 };
+    }
+
+    bullets.forEach((bullet) => {
+      bullet.y += bullet.vy;
+    });
+    enemies.forEach((enemy) => {
+      enemy.y += enemy.vy;
+    });
+    if (boss) {
+      boss.x += boss.vx;
+      if (boss.x < 10 || boss.x + boss.w > canvas.width - 10) boss.vx *= -1;
+      if (frame % 60 === 0) enemies.push({ x: boss.x + boss.w / 2, y: boss.y + boss.h, w: 18, h: 18, hp: 1, vy: 2.6 });
+    }
+
+    bullets.forEach((bullet) => {
+      enemies.forEach((enemy) => {
+        if (enemy.hp > 0 && rects(bullet, enemy)) {
+          enemy.hp -= 1;
+          bullet.dead = true;
+          if (enemy.hp <= 0) {
+            score += 120;
+            if (Math.random() < 0.12) powers.push({ x: enemy.x, y: enemy.y, w: 18, h: 18, vy: 2, type: Math.random() < 0.5 ? "heal" : "rapid" });
+          }
+        }
+      });
+      if (boss && rects(bullet, boss)) {
+        boss.hp -= 1;
+        bullet.dead = true;
+        score += 45;
+        if (boss.hp <= 0) {
+          score += 2200;
+          end("Boss detruit.");
+        }
+      }
+    });
+
+    enemies.forEach((enemy) => {
+      if (enemy.hp > 0 && rects(player, enemy)) {
+        enemy.hp = 0;
+        player.hp -= 1;
+      }
+    });
+    powers.forEach((power) => {
+      power.y += power.vy;
+      if (rects(player, power)) {
+        power.dead = true;
+        if (power.type === "heal") player.hp = Math.min(5, player.hp + 1);
+        if (power.type === "rapid") player.cooldown = 0;
+        score += 220;
+      }
+    });
+
+    bullets = bullets.filter((bullet) => !bullet.dead && bullet.y > -20);
+    enemies = enemies.filter((enemy) => enemy.hp > 0 && enemy.y < canvas.height + 30);
+    powers = powers.filter((power) => !power.dead && power.y < canvas.height + 20);
+
+    if (player.hp <= 0) {
+      end("Vaisseau detruit.");
+      return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#050506";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawRect(player, skin === "comet" ? "#ffdc5e" : "#39ff88");
+    bullets.forEach((bullet) => drawRect(bullet, "#7dd3fc"));
+    enemies.forEach((enemy) => drawRect(enemy, "#ef4444"));
+    powers.forEach((power) => drawRect(power, power.type === "heal" ? "#22c55e" : "#f97316"));
+    if (boss) drawRect(boss, "#a855f7");
+
+    hud.set({ Score: score, HP: player.hp, Boss: boss ? boss.hp : "non" });
+    setArcadeScore(score);
+  }
+
+  const keyDown = (event) => {
+    keys.add(event.key.toLowerCase());
+    if (event.key === " ") event.preventDefault();
+  };
+  const keyUp = (event) => keys.delete(event.key.toLowerCase());
+  document.addEventListener("keydown", keyDown);
+  document.addEventListener("keyup", keyUp);
+  gameCleanups.push(() => {
+    document.removeEventListener("keydown", keyDown);
+    document.removeEventListener("keyup", keyUp);
+    window.cancelAnimationFrame(raf);
+  });
+
+  arcadeStage.replaceChildren(hud.element, canvas);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Gauche", () => player.x -= 18, "game-button secondary"),
+    createButton("Tirer", shoot),
+    createButton("Droite", () => player.x += 18, "game-button secondary"),
+    pause,
+    createButton("Quitter", closeArcade, "game-button secondary")
+  );
+  loop();
+}
+
+function startPlatformerGame() {
+  showGameIntro({
+    key: "platformer",
+    title: "Pixel Platformer",
+    description: "Cours, saute, recupere des pieces et atteins le portail.",
+    rules: [
+      "Fleches/QD pour bouger, espace/Z pour sauter.",
+      "Les pieces augmentent le score.",
+      "Evite les pics et termine avec le plus de PV possible."
+    ]
+  }, runPlatformerGame);
+}
+
+function runPlatformerGame() {
+  openArcade("Pixel Platformer");
+  const hud = createHud();
+  const canvas = createElement("canvas", "game-canvas");
+  canvas.width = 560;
+  canvas.height = 320;
+  const ctx = canvas.getContext("2d");
+  const keys = new Set();
+  const skin = getEquippedSkin("platformer");
+  const player = { x: 30, y: 240, w: 22, h: 30, vx: 0, vy: 0, hp: 3, grounded: false };
+  const platforms = [
+    { x: 0, y: 290, w: 1400, h: 30 },
+    { x: 160, y: 235, w: 120, h: 16 },
+    { x: 360, y: 205, w: 110, h: 16 },
+    { x: 590, y: 250, w: 140, h: 16 },
+    { x: 850, y: 220, w: 150, h: 16 },
+    { x: 1120, y: 185, w: 120, h: 16 }
+  ];
+  const coins = Array.from({ length: 18 }, (_, index) => ({ x: 90 + index * 68, y: 190 - (index % 3) * 30, w: 14, h: 14, got: false }));
+  const spikes = [{ x: 300, y: 272, w: 38, h: 18 }, { x: 760, y: 272, w: 42, h: 18 }, { x: 1030, y: 272, w: 50, h: 18 }];
+  const goal = { x: 1320, y: 230, w: 32, h: 60 };
+  let camera = 0;
+  let score = 0;
+  let paused = false;
+  let ended = false;
+  let raf = 0;
+
+  function rects(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function end(text) {
+    if (ended) return;
+    ended = true;
+    window.cancelAnimationFrame(raf);
+    finishGame("platformer", score + Math.round(player.x) + player.hp * 350, text);
+  }
+
+  function jump() {
+    if (player.grounded && !paused) {
+      player.vy = -11.5;
+      player.grounded = false;
+    }
+  }
+
+  function loop() {
+    if (ended) return;
+    raf = window.requestAnimationFrame(loop);
+    if (paused) return;
+
+    player.vx = 0;
+    if (keys.has("arrowleft") || keys.has("q") || keys.has("a")) player.vx = -4;
+    if (keys.has("arrowright") || keys.has("d")) player.vx = 4;
+    if (keys.has(" ") || keys.has("z") || keys.has("w")) jump();
+
+    player.x += player.vx;
+    player.vy += 0.55;
+    player.y += player.vy;
+    player.grounded = false;
+
+    platforms.forEach((platform) => {
+      if (rects(player, platform) && player.vy >= 0 && player.y + player.h - player.vy <= platform.y + 8) {
+        player.y = platform.y - player.h;
+        player.vy = 0;
+        player.grounded = true;
+      }
+    });
+
+    coins.forEach((coin) => {
+      if (!coin.got && rects(player, coin)) {
+        coin.got = true;
+        score += 180;
+      }
+    });
+
+    spikes.forEach((spike) => {
+      if (rects(player, spike)) {
+        player.hp -= 1;
+        player.x = Math.max(20, player.x - 90);
+        player.y = 230;
+        player.vy = 0;
+        if (player.hp <= 0) end("Platformer perdu.");
+      }
+    });
+
+    if (player.y > 360) {
+      player.hp -= 1;
+      player.x = 30;
+      player.y = 230;
+      player.vy = 0;
+      if (player.hp <= 0) end("Chute finale.");
+    }
+
+    if (rects(player, goal)) {
+      score += 1800;
+      end("Niveau termine.");
+      return;
+    }
+
+    camera = clamp(player.x - 180, 0, 880);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#07111f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(-camera, 0);
+    ctx.fillStyle = "#334155";
+    platforms.forEach((platform) => ctx.fillRect(platform.x, platform.y, platform.w, platform.h));
+    ctx.fillStyle = "#ffdc5e";
+    coins.forEach((coin) => {
+      if (!coin.got) ctx.fillRect(coin.x, coin.y, coin.w, coin.h);
+    });
+    ctx.fillStyle = "#ef4444";
+    spikes.forEach((spike) => ctx.fillRect(spike.x, spike.y, spike.w, spike.h));
+    ctx.fillStyle = "#7dd3fc";
+    ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
+    ctx.fillStyle = skin === "pixel" ? "#fb7185" : "#39ff88";
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    ctx.restore();
+
+    hud.set({ Score: score, HP: player.hp, Pieces: coins.filter((coin) => coin.got).length });
+    setArcadeScore(score + Math.round(player.x));
+  }
+
+  const keyDown = (event) => {
+    keys.add(event.key.toLowerCase());
+    if (event.key === " ") event.preventDefault();
+  };
+  const keyUp = (event) => keys.delete(event.key.toLowerCase());
+  document.addEventListener("keydown", keyDown);
+  document.addEventListener("keyup", keyUp);
+  gameCleanups.push(() => {
+    document.removeEventListener("keydown", keyDown);
+    document.removeEventListener("keyup", keyUp);
+    window.cancelAnimationFrame(raf);
+  });
+
+  arcadeStage.replaceChildren(hud.element, canvas);
+  const pause = makePauseControl(() => paused, (value) => {
+    paused = value;
+    pause.textContent = paused ? "Reprendre" : "Pause";
+  });
+  arcadeControls.replaceChildren(
+    createButton("Gauche", () => {
+      if (!paused) player.x = Math.max(0, player.x - 24);
+    }, "game-button secondary"),
+    createButton("Saut", jump),
+    createButton("Droite", () => {
+      if (!paused) player.x += 24;
+    }, "game-button secondary"),
+    pause,
+    createButton("Quitter", closeArcade, "game-button secondary")
+  );
+  loop();
 }
 
 function startReflexGame() {
@@ -1227,6 +2552,20 @@ function startGame(gameKey) {
     startAimGame();
   } else if (gameKey === "cipher") {
     startCipherGame();
+  } else if (gameKey === "snake") {
+    startSnakeGame();
+  } else if (gameKey === "puzzle") {
+    startPuzzleGame();
+  } else if (gameKey === "rpg") {
+    startRpgGame();
+  } else if (gameKey === "dungeon") {
+    startDungeonGame();
+  } else if (gameKey === "tycoon") {
+    startTycoonGame();
+  } else if (gameKey === "space") {
+    startSpaceGame();
+  } else if (gameKey === "platformer") {
+    startPlatformerGame();
   } else if (gameKey === "duel") {
     startDuelGame();
   } else if (gameKey === "ttt") {
@@ -1280,6 +2619,7 @@ async function initArcade() {
 
   applyProfileCosmetics(arcadeUser);
   arcadeClient = await window.RipSupabase.getClient();
+  bindLocalRooms();
 
   if (leaderboardGame) {
     leaderboardGame.addEventListener("change", () => loadLeaderboard(leaderboardGame.value).catch(() => null));

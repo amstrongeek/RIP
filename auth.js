@@ -1,5 +1,5 @@
 (function () {
-  const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,created_at,updated_at,last_seen";
+  const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,updated_at,last_seen";
   const AVATAR_BUCKET = "avatars";
   const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
   const AVATAR_EXTENSIONS = {
@@ -106,6 +106,7 @@
       nameStyle: (profile && profile.name_style) || "solid",
       nameColorA: (profile && profile.name_color_a) || "#39ff88",
       nameColorB: (profile && profile.name_color_b) || "#ffdc5e",
+      activeBadge: (profile && profile.active_badge) || "",
       createdAt: (profile && profile.created_at) || authUser.created_at || new Date().toISOString(),
       updatedAt: (profile && profile.updated_at) || null,
       lastSeen: (profile && profile.last_seen) || null
@@ -159,23 +160,21 @@
   async function saveProfile(supabase, authUser, pseudo) {
     const response = await supabase
       .from("profiles")
-      .upsert(
-        {
-          id: authUser.id,
-          pseudo: normalizePseudo(pseudo) || "Player",
-          email: authUser.email || "",
-          title: "Nouveau joueur",
-          status: "En ligne",
-          avatar_color: "#39ff88",
-          avatar_url: "",
-          avatar_frame: "none",
-          profile_theme: "default",
-          name_style: "solid",
-          name_color_a: "#39ff88",
-          name_color_b: "#ffdc5e"
-        },
-        { onConflict: "id" }
-      )
+      .insert({
+        id: authUser.id,
+        pseudo: normalizePseudo(pseudo) || "Player",
+        email: authUser.email || "",
+        title: "Nouveau joueur",
+        status: "En ligne",
+        avatar_color: "#39ff88",
+        avatar_url: "",
+        avatar_frame: "none",
+        profile_theme: "default",
+        name_style: "solid",
+        name_color_a: "#39ff88",
+        name_color_b: "#ffdc5e",
+        active_badge: ""
+      })
       .select(PROFILE_SELECT)
       .single();
 
@@ -183,18 +182,23 @@
       return response.data;
     }
 
+    if (response.error.code === "23505") {
+      return fetchProfile(supabase, authUser);
+    }
+
     const fallback = await supabase
       .from("profiles")
-      .upsert(
-        {
-          id: authUser.id,
-          pseudo: normalizePseudo(pseudo) || "Player",
-          email: authUser.email || ""
-        },
-        { onConflict: "id" }
-      )
+      .insert({
+        id: authUser.id,
+        pseudo: normalizePseudo(pseudo) || "Player",
+        email: authUser.email || ""
+      })
       .select("id,pseudo,email,created_at")
       .single();
+
+    if (fallback.error && fallback.error.code === "23505") {
+      return fetchProfile(supabase, authUser);
+    }
 
     if (fallback.error) {
       throw authError("profile-save-failed", fallback.error);
@@ -226,10 +230,7 @@
 
     const supabase = await getSupabase();
     const profile = await ensureProfile(supabase, sessionUser);
-    await supabase
-      .from("profiles")
-      .update({ last_seen: new Date().toISOString() })
-      .eq("id", sessionUser.id);
+    await supabase.rpc("touch_last_seen").catch(() => null);
     cachedUser = publicUser(sessionUser, profile);
     dispatchAuthChange();
     return cachedUser;
@@ -237,30 +238,13 @@
 
   function validateProfile(input) {
     const pseudo = normalizePseudo(input.pseudo);
-    const title = String(input.title || "Nouveau joueur").trim().slice(0, 32);
     const status = String(input.status || "En ligne").trim().slice(0, 32);
     const bio = String(input.bio || "").trim().slice(0, 240);
     const website = String(input.website || "").trim().slice(0, 120);
-    const avatarColor = String(input.avatarColor || "#39ff88").trim();
     const avatarUrl = String(input.avatarUrl || "").trim().slice(0, 500);
-    const nameStyle = String(input.nameStyle || "solid").trim();
-    const nameColorA = String(input.nameColorA || "#39ff88").trim();
-    const nameColorB = String(input.nameColorB || "#ffdc5e").trim();
 
     if (!/^[A-Za-z0-9_-]{3,20}$/.test(pseudo)) {
       throw authError("pseudo-invalid");
-    }
-
-    if (!/^#[0-9A-Fa-f]{6}$/.test(avatarColor)) {
-      throw authError("avatar-invalid");
-    }
-
-    if (!["solid", "gradient", "rainbow"].includes(nameStyle)) {
-      throw authError("name-style-invalid");
-    }
-
-    if (!/^#[0-9A-Fa-f]{6}$/.test(nameColorA) || !/^#[0-9A-Fa-f]{6}$/.test(nameColorB)) {
-      throw authError("avatar-invalid");
     }
 
     if (website && !/^https:\/\/[^\s]+$/i.test(website)) {
@@ -273,15 +257,10 @@
 
     return {
       pseudo,
-      title,
       status,
       bio,
       website,
-      avatarColor,
-      avatarUrl,
-      nameStyle,
-      nameColorA,
-      nameColorB
+      avatarUrl
     };
   }
 
@@ -393,25 +372,13 @@
       throw authError("invalid-login", userError);
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        pseudo: profile.pseudo,
-        title: profile.title,
-        status: profile.status,
-        bio: profile.bio,
-        website: profile.website,
-        avatar_color: profile.avatarColor,
-        avatar_url: profile.avatarUrl || (cachedUser && cachedUser.avatarUrl) || "",
-        name_style: profile.nameStyle,
-        name_color_a: profile.nameColorA,
-        name_color_b: profile.nameColorB,
-        updated_at: new Date().toISOString(),
-        last_seen: new Date().toISOString()
-      })
-      .eq("id", authData.user.id)
-      .select(PROFILE_SELECT)
-      .single();
+    const { data, error } = await supabase.rpc("update_my_profile", {
+      pseudo_input: profile.pseudo,
+      status_input: profile.status,
+      bio_input: profile.bio,
+      website_input: profile.website,
+      avatar_url_input: profile.avatarUrl || ""
+    });
 
     if (error) {
       throw authError("profile-update-failed", error);

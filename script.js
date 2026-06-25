@@ -137,6 +137,16 @@ function applyProfile(user) {
     element.textContent = user.status || "En ligne";
   });
 
+  document.querySelectorAll("[data-account-badge]").forEach((element) => {
+    const badge = user.activeBadge || user.active_badge || "";
+    element.hidden = !badge;
+    element.textContent = badge ? `Badge ${badge}` : "";
+  });
+
+  document.querySelectorAll("[data-account-badge-separator]").forEach((element) => {
+    element.hidden = !(user.activeBadge || user.active_badge);
+  });
+
   document.querySelectorAll("[data-account-email]").forEach((element) => {
     element.textContent = user.email;
   });
@@ -174,11 +184,26 @@ async function updateAuthVisibility() {
   }
 
   const user = auth ? auth.currentUser() : null;
+  let isAdmin = false;
+
+  if (user && window.RipSupabase && window.RipSupabase.isConfigured()) {
+    try {
+      const client = await window.RipSupabase.getClient();
+      const { data } = await client.rpc("is_admin");
+      isAdmin = Boolean(data);
+    } catch (error) {
+      isAdmin = false;
+    }
+  }
 
   document.body.classList.toggle("is-authenticated", Boolean(user));
 
   document.querySelectorAll("[data-auth-visible]").forEach((element) => {
     const rule = element.getAttribute("data-auth-visible");
+    if (rule === "admin") {
+      element.hidden = !isAdmin;
+      return;
+    }
     element.hidden = (rule === "guest" && user) || (rule === "user" && !user);
   });
 }
@@ -300,15 +325,21 @@ async function bindAccountPage() {
   const statsLastMessage = document.querySelector("[data-account-last-message]");
 
   if (form) {
-    form.elements.pseudo.value = user.pseudo || "";
-    form.elements.title.value = user.title || "";
-    form.elements.status.value = user.status || "En ligne";
-    form.elements.avatarColor.value = user.avatarColor || "#39ff88";
-    form.elements.nameStyle.value = user.nameStyle || "solid";
-    form.elements.nameColorA.value = user.nameColorA || "#39ff88";
-    form.elements.nameColorB.value = user.nameColorB || "#ffdc5e";
-    form.elements.website.value = user.website || "";
-    form.elements.bio.value = user.bio || "";
+    if (form.elements.pseudo) {
+      form.elements.pseudo.value = user.pseudo || "";
+    }
+
+    if (form.elements.status) {
+      form.elements.status.value = user.status || "En ligne";
+    }
+
+    if (form.elements.website) {
+      form.elements.website.value = user.website || "";
+    }
+
+    if (form.elements.bio) {
+      form.elements.bio.value = user.bio || "";
+    }
   }
 
   if (bioInput && bioCounter) {

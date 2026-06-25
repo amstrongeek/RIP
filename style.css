@@ -2664,3 +2664,317 @@ body[data-profile-theme="gold"] {
     grid-template-columns: repeat(3, minmax(54px, 1fr));
   }
 }
+
+/* arcade-v4: boutique, jeux avances, salons locaux et admin. */
+.shop-filters,
+.compact-form,
+.mini-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.shop-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.shop-meta,
+.game-hud,
+.mini-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.shop-preview {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--black);
+  background: var(--surface-strong);
+  color: var(--accent);
+  box-shadow: 3px 3px 0 var(--black);
+  font-size: 0.52rem;
+  overflow: hidden;
+}
+
+.shop-item,
+.inventory-item {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.shop-item > button,
+.inventory-item > button,
+.shop-item .shop-meta,
+.shop-item small,
+.inventory-item small {
+  grid-column: 1 / -1;
+}
+
+.shop-item[data-rarity="rare"],
+.inventory-item[data-rarity="rare"] {
+  border-color: #38bdf8;
+}
+
+.shop-item[data-rarity="epic"],
+.inventory-item[data-rarity="epic"] {
+  border-color: #a855f7;
+}
+
+.shop-item[data-rarity="legendary"],
+.inventory-item[data-rarity="legendary"] {
+  border-color: #ffdc5e;
+}
+
+.game-intro,
+.game-result,
+.game-log,
+.tycoon-panel,
+.rpg-arena,
+.local-room-item,
+.admin-panel {
+  width: min(100%, 720px);
+  display: grid;
+  gap: 12px;
+}
+
+.game-rules {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.7;
+}
+
+.game-hud {
+  width: min(100%, 720px);
+  justify-content: center;
+  color: var(--accent-2);
+  font-size: 0.55rem;
+}
+
+.game-hud span,
+.reward-line,
+.tag {
+  padding: 5px 7px;
+  border: 2px solid var(--black);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 2px 2px 0 var(--black);
+}
+
+.snake-board,
+.puzzle-grid {
+  display: grid;
+  gap: 4px;
+  width: min(92vw, 470px);
+}
+
+.snake-cell,
+.puzzle-tile {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--black);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.55rem;
+}
+
+.snake-head,
+.snake-body {
+  background: var(--accent);
+}
+
+.snake-board[data-skin="gold"] .snake-head,
+.snake-board[data-skin="gold"] .snake-body {
+  background: #ffdc5e;
+}
+
+.snake-board[data-skin="shadow"] .snake-head,
+.snake-board[data-skin="shadow"] .snake-body {
+  background: #a78bfa;
+}
+
+.snake-food {
+  background: #ef4444;
+}
+
+.snake-power {
+  background: #7dd3fc;
+  color: var(--black);
+}
+
+.puzzle-tile {
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.puzzle-tile.empty {
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.08);
+}
+
+.puzzle-grid[data-skin="crystal"] .puzzle-tile:not(.empty) {
+  background: linear-gradient(135deg, #7dd3fc, #c4b5fd);
+  color: var(--black);
+}
+
+.game-log {
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px;
+  border: 3px solid var(--black);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.56rem;
+}
+
+.game-log p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rpg-arena,
+.tycoon-panel,
+.local-room-item,
+.admin-panel {
+  padding: 12px;
+  border: 3px solid var(--black);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 3px 3px 0 var(--black);
+}
+
+.game-canvas {
+  width: min(100%, 720px);
+  height: auto;
+  image-rendering: pixelated;
+  border: 4px solid var(--black);
+  background: #050506;
+  box-shadow: 4px 4px 0 var(--black);
+}
+
+.local-room-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.admin-row {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 2px solid var(--black);
+  background: rgba(255,255,255,0.05);
+}
+
+.admin-form {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-avatar[data-avatar-frame="emerald"],
+.message-avatar[data-avatar-frame="emerald"],
+.online-avatar[data-avatar-frame="emerald"],
+.social-avatar[data-avatar-frame="emerald"] {
+  box-shadow: 0 0 0 3px #22c55e, 4px 4px 0 var(--black);
+}
+
+.profile-avatar[data-avatar-frame="ruby"],
+.message-avatar[data-avatar-frame="ruby"],
+.online-avatar[data-avatar-frame="ruby"],
+.social-avatar[data-avatar-frame="ruby"] {
+  box-shadow: 0 0 0 3px #ef4444, 4px 4px 0 var(--black);
+}
+
+.profile-avatar[data-avatar-frame="ice"],
+.message-avatar[data-avatar-frame="ice"],
+.online-avatar[data-avatar-frame="ice"],
+.social-avatar[data-avatar-frame="ice"] {
+  box-shadow: 0 0 0 3px #7dd3fc, 4px 4px 0 var(--black);
+}
+
+.profile-avatar[data-avatar-frame="shadow"],
+.message-avatar[data-avatar-frame="shadow"],
+.online-avatar[data-avatar-frame="shadow"],
+.social-avatar[data-avatar-frame="shadow"] {
+  box-shadow: 0 0 0 3px #a78bfa, 4px 4px 0 var(--black);
+}
+
+.profile-avatar[data-avatar-frame="arcade"],
+.message-avatar[data-avatar-frame="arcade"],
+.online-avatar[data-avatar-frame="arcade"],
+.social-avatar[data-avatar-frame="arcade"] {
+  box-shadow: 0 0 0 2px #39ff88, 0 0 0 5px #ffdc5e, 4px 4px 0 var(--black);
+}
+
+.profile-avatar[data-avatar-frame="prismatic"],
+.message-avatar[data-avatar-frame="prismatic"],
+.online-avatar[data-avatar-frame="prismatic"],
+.social-avatar[data-avatar-frame="prismatic"] {
+  box-shadow: 0 0 0 3px #fb3bd7, 0 0 0 6px #7dd3fc, 4px 4px 0 var(--black);
+}
+
+body[data-profile-theme="midnight"] {
+  --surface: #07111f;
+  --surface-strong: #0f172a;
+  --accent: #7dd3fc;
+}
+
+body[data-profile-theme="forest"] {
+  --surface: #07140d;
+  --surface-strong: #12311f;
+  --accent: #86efac;
+}
+
+body[data-profile-theme="synthwave"] {
+  --surface: #190724;
+  --surface-strong: #2e1065;
+  --accent: #fb3bd7;
+  --accent-2: #7dd3fc;
+}
+
+body[data-profile-theme="void"] {
+  --surface: #0c0714;
+  --surface-strong: #1e1233;
+  --accent: #c4b5fd;
+}
+
+body[data-profile-theme="candy"] {
+  --surface: #2a1020;
+  --surface-strong: #4a1d35;
+  --accent: #f9a8d4;
+  --accent-2: #bfdbfe;
+}
+
+@media (max-width: 720px) {
+  .shop-filters,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .snake-board,
+  .puzzle-grid {
+    width: min(100%, 360px);
+  }
+
+  .game-hud {
+    justify-content: flex-start;
+  }
+}

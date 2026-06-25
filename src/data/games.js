@@ -60,6 +60,90 @@ export const GAME_CATALOG = [
     featured: false
   },
   {
+    key: "snake",
+    title: "Snake moderne",
+    shortTitle: "Snake",
+    category: "classique",
+    mode: "solo",
+    difficulty: "moyen",
+    reward: "8-150 coins",
+    description: "Snake moderne avec skins, vitesse progressive et power-ups.",
+    implemented: true,
+    featured: true
+  },
+  {
+    key: "puzzle",
+    title: "Puzzle Slider",
+    shortTitle: "Puzzle",
+    category: "reflexion",
+    mode: "solo",
+    difficulty: "variable",
+    reward: "8-140 coins",
+    description: "Puzzle de cases a deplacer avec chrono, mouvements et difficultes.",
+    implemented: true,
+    featured: true
+  },
+  {
+    key: "rpg",
+    title: "Mini RPG",
+    shortTitle: "RPG",
+    category: "aventure",
+    mode: "solo",
+    difficulty: "moyen",
+    reward: "10-160 coins",
+    description: "Combat tour par tour, inventaire, ennemis, XP, loot et boss.",
+    implemented: true,
+    featured: true
+  },
+  {
+    key: "dungeon",
+    title: "Dungeon Runner",
+    shortTitle: "Dungeon",
+    category: "aventure",
+    mode: "solo",
+    difficulty: "difficile",
+    reward: "10-170 coins",
+    description: "Traverse des salles aleatoires, coffres, monstres et boss final.",
+    implemented: true,
+    featured: true
+  },
+  {
+    key: "tycoon",
+    title: "Tycoon Idle",
+    shortTitle: "Tycoon",
+    category: "gestion",
+    mode: "solo",
+    difficulty: "long",
+    reward: "5-80 coins",
+    description: "Achete des upgrades, genere des points virtuels et encaisse une session plafonnee.",
+    implemented: true,
+    featured: false
+  },
+  {
+    key: "space",
+    title: "Space Shooter",
+    shortTitle: "Space",
+    category: "action",
+    mode: "solo",
+    difficulty: "difficile",
+    reward: "10-180 coins",
+    description: "Vaisseau, tirs, vagues, power-ups et boss en canvas.",
+    implemented: true,
+    featured: true
+  },
+  {
+    key: "platformer",
+    title: "Pixel Platformer",
+    shortTitle: "Platformer",
+    category: "action",
+    mode: "solo",
+    difficulty: "moyen",
+    reward: "10-150 coins",
+    description: "Cours, saute, recupere des pieces et evite les obstacles.",
+    implemented: true,
+    featured: false
+  },
+  {
     key: "duel",
     title: "RPS Battle",
     shortTitle: "Duel",
@@ -82,30 +166,6 @@ export const GAME_CATALOG = [
     description: "Morpion en ligne avec code de partie, tours et gains de fin de match.",
     implemented: true,
     featured: true
-  },
-  {
-    key: "snake",
-    title: "Snake Mods",
-    shortTitle: "Snake",
-    category: "classique",
-    mode: "solo",
-    difficulty: "a venir",
-    reward: "bientot",
-    description: "Snake moderne avec skins, vitesse progressive et power-ups.",
-    implemented: false,
-    featured: false
-  },
-  {
-    key: "space",
-    title: "Space Shooter",
-    shortTitle: "Space",
-    category: "action",
-    mode: "solo",
-    difficulty: "a venir",
-    reward: "bientot",
-    description: "Prototype de jeu plus complet avec vaisseau, vagues et boss.",
-    implemented: false,
-    featured: false
   }
 ];
 
@@ -115,6 +175,8 @@ export const GAME_CATEGORIES = [
   "rapidite",
   "precision",
   "reflexion",
+  "aventure",
+  "gestion",
   "multijoueur",
   "classique"
 ];

@@ -98,7 +98,7 @@ export async function getShop(client) {
   const [itemsResult, inventoryResult] = await Promise.all([
     client
       .from("shop_items")
-      .select("item_key,name,description,price,item_type,payload,sort_order")
+      .select("item_key,name,description,price,item_type,payload,sort_order,rarity,category,equip_slot")
       .order("sort_order", { ascending: true }),
     client
       .from("user_inventory")
@@ -195,7 +195,7 @@ export async function getLeaderboard(client, gameKey = "reflex", limit = 10) {
   if (userIds.length) {
     const profileResult = await client
       .from("profiles")
-      .select("id,pseudo,avatar_color,avatar_url,name_style,name_color_a,name_color_b")
+      .select("id,pseudo,avatar_color,avatar_url,name_style,name_color_a,name_color_b,active_badge")
       .in("id", userIds);
     profiles = profileResult.data || [];
   }
@@ -223,5 +223,5 @@ export async function getMessageStats(client, userId) {
 
 export function schemaMissing(error) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission|column|policy/i.test(message);
+  return /profiles|avatar|storage|user_wallets|shop_items|user_inventory|game_scores|game_settings|admin_roles|admin_logs|user_missions|user_achievements|user_notifications|tic_tac_toe_games|function|schema|permission|column|policy/i.test(message);
 }

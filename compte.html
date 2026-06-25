@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compte | RIP</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260625-coreui1">
+  <link rel="stylesheet" href="style.css?v=20260625-arcadev4">
 </head>
 <body class="app-body">
   <header class="site-header app-header">
@@ -22,6 +22,7 @@
       <a href="connexion.html" data-auth-visible="guest">Connexion</a>
       <a href="inscription.html" data-auth-visible="guest">Inscription</a>
       <a href="compte.html" data-auth-visible="user">Profil</a>
+      <a href="admin.html" data-auth-visible="admin" hidden>Admin</a>
     </nav>
   </header>
 
@@ -36,6 +37,8 @@
             <span data-account-title>Nouveau joueur</span>
             <span class="dot-separator">/</span>
             <span data-account-status>En ligne</span>
+            <span class="dot-separator" data-account-badge-separator hidden>/</span>
+            <span data-account-badge hidden></span>
           </p>
         </div>
       </div>
@@ -84,11 +87,6 @@
             </div>
 
             <div class="field">
-              <label for="profile-title">Titre</label>
-              <input id="profile-title" name="title" type="text" maxlength="32" placeholder="Ex: Speedrunner">
-            </div>
-
-            <div class="field">
               <label for="profile-status">Statut</label>
               <select id="profile-status" name="status">
                 <option value="En ligne">En ligne</option>
@@ -100,34 +98,9 @@
             </div>
 
             <div class="field">
-              <label for="profile-color">Couleur avatar</label>
-              <input id="profile-color" name="avatarColor" type="color" value="#39ff88">
-            </div>
-
-            <div class="field">
               <label for="profile-avatar-file">Photo de profil</label>
               <input id="profile-avatar-file" name="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
               <small>PNG, JPG, WEBP ou GIF. Maximum 2 Mo.</small>
-            </div>
-
-            <div class="field">
-              <label for="profile-name-style">Style du pseudo</label>
-              <select id="profile-name-style" name="nameStyle">
-                <option value="solid">Couleur simple</option>
-                <option value="gradient">Degrade 2 couleurs</option>
-                <option value="rainbow">Arc-en-ciel</option>
-              </select>
-            </div>
-
-            <div class="field color-pair">
-              <div>
-                <label for="profile-name-color-a">Couleur pseudo 1</label>
-                <input id="profile-name-color-a" name="nameColorA" type="color" value="#39ff88">
-              </div>
-              <div>
-                <label for="profile-name-color-b">Couleur pseudo 2</label>
-                <input id="profile-name-color-b" name="nameColorB" type="color" value="#ffdc5e">
-              </div>
             </div>
 
             <div class="field">
@@ -143,6 +116,7 @@
             </div>
 
             <button class="button primary full" type="submit">Sauvegarder</button>
+            <a class="button secondary full" href="boutique.html">Changer les cosmetiques dans la boutique</a>
             <p class="form-message" id="account-message" role="status" aria-live="polite"></p>
           </form>
         </section>
@@ -160,9 +134,9 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="supabase-config.js?v=20260625-coreui1"></script>
-  <script src="supabase-client.js?v=20260625-coreui1"></script>
-  <script src="auth.js?v=20260625-coreui1"></script>
-  <script src="script.js?v=20260625-coreui1"></script>
+  <script src="supabase-config.js?v=20260625-arcadev4"></script>
+  <script src="supabase-client.js?v=20260625-arcadev4"></script>
+  <script src="auth.js?v=20260625-arcadev4"></script>
+  <script src="script.js?v=20260625-arcadev4"></script>
 </body>
 </html>

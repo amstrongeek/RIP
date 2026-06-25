@@ -130,6 +130,7 @@ function renderProfile(user) {
   text("[data-platform-name]", user.pseudo || "Player");
   text("[data-platform-title]", user.title || "Nouveau joueur");
   text("[data-platform-status-text]", user.status || "En ligne");
+  text("[data-platform-badge]", user.activeBadge || user.active_badge || "");
   document.body.dataset.profileTheme = user.profileTheme || user.profile_theme || "default";
 
   document.querySelectorAll("[data-platform-name]").forEach((element) => {
