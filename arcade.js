@@ -6,7 +6,7 @@ import {
   setLocalReady
 } from "./src/services/room-service.js";
 
-const ARCADE_VERSION = "20260625-riptuff1";
+const ARCADE_VERSION = "20260625-riptuff2";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher", "snake", "puzzle", "rpg", "dungeon", "tycoon", "space", "platformer"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
@@ -159,6 +159,11 @@ function schemaMissing(error) {
 
 function arcadeErrorMessage(error, fallback = "Arcade indisponible.") {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  const shortMessage = message ? message.slice(0, 180) : "";
+
+  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
+    return "Supabase inaccessible depuis le navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
+  }
 
   if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
     return "RPC Supabase manquante : applique le fichier supabase-chat.sql complet.";
@@ -180,7 +185,7 @@ function arcadeErrorMessage(error, fallback = "Arcade indisponible.") {
     return "Objet deja possede.";
   }
 
-  return fallback;
+  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
 }
 
 function xpForLevel(level) {

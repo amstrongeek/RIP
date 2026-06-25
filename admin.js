@@ -26,6 +26,11 @@ function setStatus(message, error = false) {
 
 function adminErrorMessage(error, fallback = "Action admin impossible.") {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  const shortMessage = message ? message.slice(0, 180) : "";
+
+  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
+    return "Supabase inaccessible depuis le navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
+  }
 
   if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
     return "RPC admin manquante : applique supabase-chat.sql complet.";
@@ -47,7 +52,7 @@ function adminErrorMessage(error, fallback = "Action admin impossible.") {
     return "Permission refusee par Supabase/RLS.";
   }
 
-  return fallback;
+  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
 }
 
 function createElement(tag, className, text) {

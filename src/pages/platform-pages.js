@@ -86,6 +86,11 @@ function setStatus(message, error = false) {
 
 function platformErrorMessage(error, fallback) {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  const shortMessage = message ? message.slice(0, 180) : "";
+
+  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
+    return "Supabase inaccessible depuis le navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
+  }
 
   if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
     return "RPC Supabase manquante : applique supabase-chat.sql complet.";
@@ -103,7 +108,15 @@ function platformErrorMessage(error, fallback) {
     return "Permission Supabase refusee : verifie grants/RLS.";
   }
 
-  return schemaMissing(error) ? "Migration Supabase incomplete." : fallback;
+  if (/relationship|foreign key|PGRST200/i.test(message)) {
+    return "Relation Supabase manquante ou cache PostgREST pas encore recharge.";
+  }
+
+  if (schemaMissing(error)) {
+    return shortMessage ? `Erreur schema Supabase : ${shortMessage}` : "Erreur schema Supabase.";
+  }
+
+  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
 }
 
 function settledValue(result, fallback) {

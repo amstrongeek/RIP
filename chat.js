@@ -3,7 +3,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,last_seen";
-const APP_VERSION = "20260625-riptuff1";
+const APP_VERSION = "20260625-riptuff2";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -620,6 +620,11 @@ function schemaHelp(error) {
 
 function chatErrorMessage(error, fallback = "Erreur tchat") {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  const shortMessage = message ? message.slice(0, 180) : "";
+
+  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
+    return "Supabase inaccessible depuis le navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
+  }
 
   if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
     return "RPC Supabase manquante : applique le fichier supabase-chat.sql complet.";
@@ -637,7 +642,7 @@ function chatErrorMessage(error, fallback = "Erreur tchat") {
     return "Permission tchat refusee : verifie les policies Supabase.";
   }
 
-  return fallback;
+  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
 }
 
 async function loadProfiles(userIds) {

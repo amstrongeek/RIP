@@ -2724,19 +2724,30 @@ begin
   end if;
 
   return jsonb_build_object(
-    'schema_version', '20260625-riptuff1',
+    'schema_version', '20260625-riptuff2',
     'tables', jsonb_build_object(
       'profiles', to_regclass('public.profiles') is not null,
+      'chat_rooms', to_regclass('public.chat_rooms') is not null,
+      'chat_messages', to_regclass('public.chat_messages') is not null,
       'shop_items', to_regclass('public.shop_items') is not null,
+      'user_inventory', to_regclass('public.user_inventory') is not null,
+      'user_wallets', to_regclass('public.user_wallets') is not null,
       'game_scores', to_regclass('public.game_scores') is not null,
+      'user_missions', to_regclass('public.user_missions') is not null,
+      'user_achievements', to_regclass('public.user_achievements') is not null,
       'user_notifications', to_regclass('public.user_notifications') is not null,
       'admin_roles', to_regclass('public.admin_roles') is not null,
       'bug_reports', to_regclass('public.bug_reports') is not null
     ),
     'functions', jsonb_build_object(
       'update_my_profile', to_regprocedure('public.update_my_profile(text,text,text,text,text)') is not null,
+      'get_my_wallet', to_regprocedure('public.get_my_wallet()') is not null,
+      'get_my_missions', to_regprocedure('public.get_my_missions()') is not null,
+      'get_my_achievements', to_regprocedure('public.get_my_achievements()') is not null,
       'complete_solo_game', to_regprocedure('public.complete_solo_game(text,integer)') is not null,
       'get_my_notifications', to_regprocedure('public.get_my_notifications(integer)') is not null,
+      'mark_notification_read', to_regprocedure('public.mark_notification_read(uuid)') is not null,
+      'equip_shop_item', to_regprocedure('public.equip_shop_item(text)') is not null,
       'is_admin', to_regprocedure('public.is_admin()') is not null,
       'submit_bug_report', to_regprocedure('public.submit_bug_report(text,text,text,text)') is not null
     ),

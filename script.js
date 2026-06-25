@@ -48,6 +48,11 @@ function humanAuthError(error) {
 
 function humanSupabaseError(error, fallback = "Action Supabase impossible.") {
   const message = String(error && (error.message || error.details || error.hint || error.code) || "");
+  const shortMessage = message ? message.slice(0, 180) : "";
+
+  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
+    return "Supabase inaccessible depuis ton navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
+  }
 
   if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
     return "RPC Supabase manquante : le fichier supabase-chat.sql complet n'a pas ete applique.";
@@ -73,7 +78,7 @@ function humanSupabaseError(error, fallback = "Action Supabase impossible.") {
     return "Attends une minute avant de renvoyer un bug.";
   }
 
-  return fallback;
+  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
 }
 
 function formatShortDate(value) {
@@ -246,11 +251,38 @@ function bindNavigationMenu() {
       return;
     }
 
-    button.addEventListener("click", () => {
+    const close = () => {
+      nav.dataset.open = "false";
+      button.setAttribute("aria-expanded", "false");
+      document.body.classList.remove("nav-open");
+    };
+
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       const open = nav.dataset.open !== "true";
       nav.dataset.open = String(open);
       button.setAttribute("aria-expanded", String(open));
       document.body.classList.toggle("nav-open", open);
+    });
+
+    nav.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      if (event.target.closest("a")) {
+        close();
+      }
+    });
+
+    document.addEventListener("click", () => {
+      if (nav.dataset.open === "true") {
+        close();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && nav.dataset.open === "true") {
+        close();
+      }
     });
   });
 }
@@ -540,9 +572,9 @@ onReady(async () => {
   document.addEventListener("rip-auth-change", updateAuthVisibility);
 
   markCurrentNavigation();
-  await updateAuthVisibility();
   bindNavigationMenu();
   bindBugForm();
+  await updateAuthVisibility();
   bindSignupForm();
   bindLoginForm();
   await bindAccountPage();
