@@ -76,6 +76,10 @@ create table if not exists public.chat_messages (
 alter table public.chat_messages add column if not exists room_id uuid references public.chat_rooms(id) on delete cascade;
 alter table public.chat_messages add column if not exists reply_to_id bigint references public.chat_messages(id) on delete set null;
 alter table public.chat_messages replica identity full;
+alter table public.chat_messages drop constraint if exists chat_messages_user_id_uuid_format;
+alter table public.chat_messages
+  add constraint chat_messages_user_id_uuid_format
+  check (user_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') not valid;
 
 create table if not exists public.message_reactions (
   message_id bigint not null references public.chat_messages(id) on delete cascade,
@@ -2795,7 +2799,7 @@ grant execute on function public.get_platform_health() to anon, authenticated;
 create or replace function public.get_my_profile_card_stats()
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public
 as $$

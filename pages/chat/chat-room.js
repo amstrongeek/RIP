@@ -3,9 +3,10 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,last_seen";
-const APP_VERSION = "20260626-nav-account2";
+const APP_VERSION = "20260626-supabase-fix3";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const statusElement = document.querySelector("[data-chat-status]");
 const setupBox = document.querySelector("[data-chat-setup]");
@@ -298,6 +299,10 @@ function profileValue(profile, snakeName, camelName, fallback = "") {
   }
 
   return profile[snakeName] || profile[camelName] || fallback;
+}
+
+function isUuid(value) {
+  return UUID_PATTERN.test(String(value || ""));
 }
 
 function applyNameStyle(element, profile, fallbackPseudo = "Player") {
@@ -647,7 +652,8 @@ function chatErrorMessage(error, fallback = "Erreur tchat") {
 
 async function loadProfiles(userIds) {
   const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
-  const missing = ids.filter((id) => !profileCache.has(id));
+  const validIds = ids.filter(isUuid);
+  const missing = validIds.filter((id) => !profileCache.has(id));
 
   if (!missing.length) {
     return;
@@ -681,7 +687,7 @@ async function loadProfiles(userIds) {
 }
 
 async function getProfile(userId) {
-  if (!userId) {
+  if (!userId || !isUuid(userId)) {
     return null;
   }
 
@@ -770,6 +776,11 @@ function renderProfileModal(profile) {
 }
 
 async function openProfile(userId) {
+  if (!isUuid(userId)) {
+    setFeatureStatus("Profil ancien non lie a Supabase.");
+    return;
+  }
+
   try {
     const profile = currentUser && userId === currentUser.id
       ? {
@@ -1833,11 +1844,7 @@ function bindLocalControls() {
 
   if (clearViewButton) {
     clearViewButton.addEventListener("click", () => {
-      if (replyCancelButton) {
-    replyCancelButton.addEventListener("click", () => setReplyTarget(null));
-  }
-
-  if (searchInput) {
+      if (searchInput) {
         searchInput.value = "";
       }
 

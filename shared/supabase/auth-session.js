@@ -244,7 +244,14 @@
       lastProfileError = error;
     }
 
-    await supabase.rpc("touch_last_seen").catch(() => null);
+    try {
+      const { error } = await supabase.rpc("touch_last_seen");
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.warn("Presence Supabase indisponible:", error);
+    }
     cachedUser = publicUser(sessionUser, profile);
     dispatchAuthChange();
     return cachedUser;
@@ -386,17 +393,58 @@
       throw authError("invalid-login", userError);
     }
 
+    async function updateProfileDirectly() {
+      const payload = {
+        id: authData.user.id,
+        pseudo: profile.pseudo,
+        email: authData.user.email || "",
+        status: profile.status,
+        bio: profile.bio,
+        website: profile.website,
+        avatar_url: profile.avatarUrl || "",
+        updated_at: new Date().toISOString()
+      };
+
+      const response = await supabase
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" })
+        .select(PROFILE_SELECT)
+        .single();
+
+      if (!response.error) {
+        return response.data;
+      }
+
+      const fallback = await supabase
+        .from("profiles")
+        .upsert({
+          id: payload.id,
+          pseudo: payload.pseudo,
+          email: payload.email
+        }, { onConflict: "id" })
+        .select("id,pseudo,email,created_at")
+        .single();
+
+      if (fallback.error) {
+        throw fallback.error;
+      }
+
+      return fallback.data;
+    }
+
     let data = null;
+    let rpcError = null;
+    const hasSharedProfileUpdater = window.RipData && typeof window.RipData.updateUserProfile === "function";
 
     try {
-      data = window.RipData && typeof window.RipData.updateUserProfile === "function"
+      data = hasSharedProfileUpdater
         ? await window.RipData.updateUserProfile(profile)
         : null;
     } catch (error) {
-      throw authError("profile-update-failed", error);
+      rpcError = error;
     }
 
-    if (!data) {
+    if (!data && !hasSharedProfileUpdater) {
       const response = await supabase.rpc("update_my_profile", {
         pseudo_input: profile.pseudo,
         status_input: profile.status,
@@ -406,10 +454,18 @@
       });
 
       if (response.error) {
-        throw authError("profile-update-failed", response.error);
+        rpcError = response.error;
+      } else {
+        data = response.data;
       }
+    }
 
-      data = response.data;
+    if (!data) {
+      try {
+        data = await updateProfileDirectly();
+      } catch (error) {
+        throw authError("profile-update-failed", rpcError || error);
+      }
     }
 
     await supabase.auth.updateUser({

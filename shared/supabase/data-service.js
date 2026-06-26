@@ -2,6 +2,7 @@
   const SDK_URL = "https://esm.sh/@supabase/supabase-js@2";
   const PROFILE_SELECT = "id,pseudo,email,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,updated_at,last_seen";
   const SHOP_SELECT = "item_key,name,description,price,item_type,payload,sort_order,rarity,category,equip_slot,is_active";
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   let clientPromise = null;
 
   function normalizeProjectUrl(url) {
@@ -64,6 +65,36 @@
     }
 
     return count !== null && count !== undefined ? { data, count } : data;
+  }
+
+  function isUuid(value) {
+    return UUID_PATTERN.test(String(value || ""));
+  }
+
+  function fallbackWallet(userId = "") {
+    return {
+      user_id: userId,
+      points: 0,
+      total_points: 0,
+      xp: 0,
+      level: 1,
+      streak: 0,
+      last_daily_at: null,
+      updated_at: null
+    };
+  }
+
+  async function safeRead(label, reader, fallback) {
+    try {
+      return await reader();
+    } catch (error) {
+      console.warn(`${label} Supabase indisponible:`, error);
+      return fallback;
+    }
+  }
+
+  function settledValue(result, fallback) {
+    return result.status === "fulfilled" ? result.value : fallback;
   }
 
   async function getCurrentAuthUser() {
@@ -130,7 +161,7 @@
   }
 
   async function getProfiles(userIds, select = PROFILE_SELECT) {
-    const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
+    const ids = [...new Set((userIds || []).filter(Boolean).map(String).filter(isUuid))];
 
     if (!ids.length) {
       return [];
@@ -383,7 +414,8 @@
       .eq("user_id", userId);
 
     if (error) {
-      throw error;
+      console.warn("Stats messages Supabase indisponibles:", error);
+      return 0;
     }
 
     return count || 0;
@@ -405,7 +437,12 @@
     ]);
 
     if (countError || lastError) {
-      throw countError || lastError;
+      console.warn("Stats utilisateur Supabase indisponibles:", countError || lastError);
+      return {
+        messageCount: 0,
+        lastMessageAt: null,
+        lastMessage: ""
+      };
     }
 
     return {
@@ -429,12 +466,12 @@
     }
 
     const [profile, wallet, messages, scores, shop, achievements] = await Promise.all([
-      getUserProfile(user.id),
-      getWallet(),
-      getUserMessageStats(user.id),
-      getRecentScores(user.id, 24),
-      getShopData(),
-      getAchievements()
+      safeRead("Profil", () => getUserProfile(user.id), null),
+      safeRead("Wallet", () => getWallet(), fallbackWallet(user.id)),
+      safeRead("Messages", () => getUserMessageStats(user.id), { messageCount: 0, lastMessageAt: null, lastMessage: "" }),
+      safeRead("Scores", () => getRecentScores(user.id, 24), []),
+      safeRead("Boutique", () => getShopData(), { items: [], inventory: [] }),
+      safeRead("Succes", () => getAchievements(), [])
     ]);
     const best = (scores || []).reduce((winner, score) => {
       return Number(score.score || 0) > Number(winner.score || 0) ? score : winner;
@@ -458,7 +495,7 @@
   }
 
   async function getDashboardData(userId) {
-    const [wallet, missions, scores, shop, messageCount, achievements, notifications] = await Promise.all([
+    const results = await Promise.allSettled([
       getWallet(),
       getMissions(),
       getRecentScores(userId),
@@ -467,8 +504,17 @@
       getAchievements(),
       getNotifications(6)
     ]);
+    const [wallet, missions, scores, shop, messageCount, achievements, notifications] = results;
 
-    return { wallet, missions, scores, shop, messageCount, achievements, notifications };
+    return {
+      wallet: settledValue(wallet, fallbackWallet(userId)),
+      missions: settledValue(missions, []),
+      scores: settledValue(scores, []),
+      shop: settledValue(shop, { items: [], inventory: [] }),
+      messageCount: settledValue(messageCount, 0),
+      achievements: settledValue(achievements, []),
+      notifications: settledValue(notifications, [])
+    };
   }
 
   window.RipSupabase = {
