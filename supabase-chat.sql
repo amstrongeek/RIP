@@ -2724,7 +2724,7 @@ begin
   end if;
 
   return jsonb_build_object(
-    'schema_version', '20260626-stable-polish1',
+    'schema_version', '20260626-file-layout2',
     'tables', jsonb_build_object(
       'profiles', to_regclass('public.profiles') is not null,
       'chat_rooms', to_regclass('public.chat_rooms') is not null,

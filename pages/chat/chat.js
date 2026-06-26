@@ -3,7 +3,7 @@ const MAX_MESSAGE_LENGTH = 500;
 const MESSAGE_LIMIT = 120;
 const TYPING_TTL = 2600;
 const PROFILE_SELECT = "id,pseudo,title,status,bio,website,avatar_color,avatar_url,avatar_frame,profile_theme,name_style,name_color_a,name_color_b,active_badge,created_at,last_seen";
-const APP_VERSION = "20260626-stable-polish1";
+const APP_VERSION = "20260626-file-layout2";
 const STORAGE_PREFIX = "rip-chat";
 const THEMES = ["default", "blue", "pink", "gold"];
 
@@ -92,7 +92,7 @@ let mutedUsers = new Set();
 function loadFreshAuthScript() {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `auth.js?v=${APP_VERSION}-${Date.now()}`;
+    script.src = `../../shared/supabase/auth.js?v=${APP_VERSION}-${Date.now()}`;
     script.onload = resolve;
     script.onerror = reject;
     document.head.append(script);

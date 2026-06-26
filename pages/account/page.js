@@ -243,17 +243,32 @@ async function updateAuthVisibility() {
   });
 }
 
+const PAGE_ROUTES = {
+  home: "../home/index.html",
+  chat: "../chat/index.html",
+  dashboard: "../dashboard/index.html",
+  arcade: "../arcade/index.html",
+  shop: "../shop/index.html",
+  leaderboards: "../leaderboards/index.html",
+  achievements: "../achievements/index.html",
+  notifications: "../notifications/index.html",
+  account: "../account/index.html",
+  login: "../login/index.html",
+  signup: "../signup/index.html",
+  admin: "../admin/index.html"
+};
+
 const MAIN_NAV_ITEMS = [
-  { href: "index.html", label: "Accueil" },
-  { href: "chat.html", label: "Tchat" },
-  { href: "dashboard.html", label: "Dashboard" },
-  { href: "arcade.html", label: "Arcade" },
-  { href: "boutique.html", label: "Boutique" },
-  { href: "classements.html", label: "Classements" },
-  { href: "succes.html", label: "Succes" },
-  { href: "connexion.html", label: "Connexion", auth: "guest" },
-  { href: "compte.html", label: "Profil", auth: "user" },
-  { href: "admin.html", label: "Admin", auth: "admin", hidden: true }
+  { href: PAGE_ROUTES.home, label: "Accueil" },
+  { href: PAGE_ROUTES.chat, label: "Tchat" },
+  { href: PAGE_ROUTES.dashboard, label: "Dashboard" },
+  { href: PAGE_ROUTES.arcade, label: "Arcade" },
+  { href: PAGE_ROUTES.shop, label: "Boutique" },
+  { href: PAGE_ROUTES.leaderboards, label: "Classements" },
+  { href: PAGE_ROUTES.achievements, label: "Succes" },
+  { href: PAGE_ROUTES.login, label: "Connexion", auth: "guest" },
+  { href: PAGE_ROUTES.account, label: "Profil", auth: "user" },
+  { href: PAGE_ROUTES.admin, label: "Admin", auth: "admin", hidden: true }
 ];
 
 function normalizeNavigation() {
@@ -330,11 +345,16 @@ function bindNavigationMenu() {
   });
 }
 
+function routePath(value) {
+  const url = new URL(value, window.location.href);
+  return url.pathname.replace(/\/index\.html$/, "/");
+}
+
 function markCurrentNavigation() {
-  const current = location.pathname.split("/").pop() || "index.html";
+  const current = routePath(window.location.href);
   document.querySelectorAll("[data-main-nav] a[href]").forEach((link) => {
     const href = link.getAttribute("href");
-    if (href === current) {
+    if (href && routePath(href) === current) {
       link.setAttribute("aria-current", "page");
     } else {
       link.removeAttribute("aria-current");
@@ -424,7 +444,7 @@ function bindSignupForm() {
 
       setMessage(message, "Compte cree. Redirection...", "success");
       setTimeout(() => {
-        window.location.href = "compte.html";
+        window.location.href = PAGE_ROUTES.account;
       }, 650);
     } catch (error) {
       console.error("Erreur inscription:", error);
@@ -456,7 +476,7 @@ function bindLoginForm() {
       await window.RipAuth.login(data.email, data.password);
       setMessage(message, "Connexion reussie. Redirection...", "success");
       setTimeout(() => {
-        window.location.href = "dashboard.html";
+        window.location.href = PAGE_ROUTES.dashboard;
       }, 650);
     } catch (error) {
       console.error("Erreur connexion:", error);
@@ -486,7 +506,7 @@ async function bindAccountPage() {
   if (!user) {
     setMessage(message, "Connecte-toi d'abord. Redirection...", "error");
     setTimeout(() => {
-      window.location.href = "connexion.html";
+      window.location.href = PAGE_ROUTES.login;
     }, 900);
     return;
   }
@@ -859,7 +879,7 @@ function bindLogoutButtons() {
         await window.RipAuth.logout();
       }
 
-      window.location.href = "connexion.html";
+      window.location.href = PAGE_ROUTES.login;
     });
   });
 }

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Dashboard</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="style.css?v=20260626-file-layout2">
+</head>
+<body class="app-body" data-platform-page="dashboard">
+  <header class="site-header app-header">
+    <a class="logo brand-logo" href="../home/index.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+
+        <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/index.html">Accueil</a>
+      <a href="../chat/index.html">Tchat</a>
+      <a href="../dashboard/index.html">Dashboard</a>
+      <a href="../arcade/index.html">Arcade</a>
+      <a href="../shop/index.html">Boutique</a>
+      <a href="../leaderboards/index.html">Classements</a>
+      <a href="../achievements/index.html">Succes</a>
+      <a href="../login/index.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/index.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/index.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="platform-page">
+    <section class="platform-shell">
+      <div class="setup-box" data-platform-setup hidden>
+        <strong>Configuration Supabase manquante</strong>
+        <p>Ajoute ton URL et ta cle publique dans <code>shared/supabase/config.js</code>.</p>
+      </div>
+      <div class="setup-box" data-platform-login hidden>
+        <strong>Connexion requise</strong>
+        <p>Connecte-toi pour voir ton dashboard, tes points et ton inventaire.</p>
+        <a class="button primary" href="../login/index.html">Se connecter</a>
+      </div>
+
+      <div class="platform-hero">
+        <div class="profile-avatar hero-avatar" data-platform-avatar>?</div>
+        <div>
+          <p class="eyebrow">RIP platform</p>
+          <h1>Dashboard joueur</h1>
+          <p class="platform-lead">Bienvenue <span class="display-name" data-platform-name>Player</span>. Niveau <strong data-platform-level>1</strong>, <strong data-platform-points>0</strong> RIP coins.</p>
+          <div class="platform-actions">
+            <a class="button primary" href="../arcade/index.html">Jouer</a>
+            <a class="button secondary" href="../shop/index.html">Boutique</a>
+            <a class="button secondary" href="../chat/index.html">Tchat</a>
+            <a class="button secondary" href="../achievements/index.html">Succes</a>
+          </div>
+        </div>
+        <div class="platform-status" data-platform-status>Initialisation...</div>
+      </div>
+
+      <div class="platform-grid stats-grid">
+        <article class="stat-card">
+          <span>Points</span>
+          <strong data-platform-points>0</strong>
+          <small>Solde depensable boutique</small>
+        </article>
+        <article class="stat-card">
+          <span>Niveau</span>
+          <strong data-platform-level>1</strong>
+          <small data-platform-xp-next>0 / 120 XP vers niveau 2</small>
+          <div class="wallet-progress"><span data-platform-xp-bar></span></div>
+        </article>
+        <article class="stat-card">
+          <span>Inventaire</span>
+          <strong data-platform-inventory-count>0</strong>
+          <small><span data-platform-shop-count>0</span> items boutique</small>
+        </article>
+        <article class="stat-card">
+          <span>Communaute</span>
+          <strong data-platform-message-count>0</strong>
+          <small>messages envoyes</small>
+        </article>
+      </div>
+
+      <div class="page-split">
+        <section class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Recommande</p>
+              <h2>Jeux a lancer</h2>
+            </div>
+            <a class="button secondary" href="../arcade/index.html">Voir arcade</a>
+          </div>
+          <div class="game-card-grid compact" data-game-grid></div>
+        </section>
+
+        <aside class="platform-panel">
+          <p class="eyebrow">Progression</p>
+          <h2>Missions</h2>
+          <div class="mission-list platform-mission-list" data-platform-missions>Chargement...</div>
+        </aside>
+      </div>
+
+
+      <div class="page-split">
+        <section class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Succes</p>
+              <h2><span data-platform-achievements-count>0</span>/<span data-platform-achievements-total>0</span> debloques</h2>
+            </div>
+            <a class="button secondary" href="../achievements/index.html">Voir</a>
+          </div>
+          <div class="achievement-grid compact-list" data-platform-achievements data-limit="4">Chargement...</div>
+        </section>
+
+        <aside class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Notifications</p>
+              <h2><span data-platform-notifications-count>0</span> non lues</h2>
+            </div>
+            <a class="button secondary" href="../notifications/index.html">Inbox</a>
+          </div>
+          <div class="notification-list compact-list" data-platform-notifications data-limit="4">Chargement...</div>
+        </aside>
+      </div>
+      <section class="platform-panel">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Historique</p>
+            <h2>Dernieres activites</h2>
+          </div>
+          <span class="tag">Supabase</span>
+        </div>
+        <ul class="activity-list" data-platform-activity></ul>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="../../shared/supabase/config.js?v=20260626-file-layout2"></script>
+  <script src="../../shared/supabase/client.js?v=20260626-file-layout2"></script>
+  <script src="../../shared/supabase/auth.js?v=20260626-file-layout2"></script>
+  <script src="page.js?v=20260626-file-layout2"></script>
+  <script type="module" src="platform.js?v=20260626-file-layout2"></script>
+</body>
+</html>

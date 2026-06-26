@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Tchat</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="style.css?v=20260626-file-layout2">
+</head>
+<body class="app-body">
+  <header class="site-header app-header">
+    <a class="logo brand-logo" href="../home/index.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+
+            <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/index.html">Accueil</a>
+      <a href="../chat/index.html">Tchat</a>
+      <a href="../dashboard/index.html">Dashboard</a>
+      <a href="../arcade/index.html">Arcade</a>
+      <a href="../shop/index.html">Boutique</a>
+      <a href="../leaderboards/index.html">Classements</a>
+      <a href="../achievements/index.html">Succes</a>
+      <a href="../login/index.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/index.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/index.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="chat-page app-page">
+    <section class="chat-shell app-shell" aria-labelledby="chat-title">
+      <div class="chat-heading app-heading">
+        <div>
+          <p class="eyebrow">RIP live</p>
+          <h1 id="chat-title">Tchat arcade</h1>
+          <p class="current-room-line">
+            <span data-current-room-name>General</span>
+            <span data-current-room-kind>public</span>
+            <code data-current-room-code hidden></code>
+          </p>
+        </div>
+        <div class="chat-status" data-chat-status>Initialisation...</div>
+      </div>
+
+      <div class="setup-box" data-chat-setup hidden>
+        <strong>Configuration Supabase manquante</strong>
+        <p>
+          Ouvre le fichier <code>shared/supabase/config.js</code>, colle ton URL Supabase
+          et ta cle publique anon. Le tchat deviendra en ligne apres le push GitHub.
+        </p>
+      </div>
+
+      <div class="setup-box" data-chat-login hidden>
+        <strong>Connexion requise</strong>
+        <p>Connecte-toi avec ton compte Supabase avant d'envoyer un message ou de jouer.</p>
+        <a class="button primary" href="../login/index.html">Se connecter</a>
+      </div>
+
+      <div class="chat-layout discord-layout">
+        <aside class="chat-sidebar" aria-label="Salons et amis">
+          <div class="chat-panel self-panel">
+            <span class="panel-label">Moi</span>
+            <div class="self-card">
+              <button class="profile-avatar small-avatar" type="button" data-self-avatar data-open-self-profile>?</button>
+              <div>
+                <strong class="display-name" data-self-name>Invite</strong>
+                <small data-self-status>Connecte-toi</small>
+              </div>
+            </div>
+            <a class="button secondary full" href="../account/index.html" data-auth-visible="user">Modifier mon profil</a>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Salons</span>
+            <label class="sr-only" for="room-filter">Filtrer les salons</label>
+            <input class="panel-search" id="room-filter" data-room-filter type="search" placeholder="Filtrer salons...">
+            <div class="room-list" data-room-list>
+              <button type="button" disabled>Chargement...</button>
+            </div>
+
+            <form class="mini-form" data-create-room-form>
+              <label for="room-name">Nouveau salon</label>
+              <input id="room-name" name="name" type="text" maxlength="40" placeholder="Nom du salon">
+              <select name="kind" aria-label="Type de salon">
+                <option value="public">Public</option>
+                <option value="private">Prive</option>
+              </select>
+              <button type="submit">Creer</button>
+            </form>
+
+            <form class="mini-form" data-join-room-form>
+              <label for="room-code">Rejoindre avec code</label>
+              <input id="room-code" name="code" type="text" maxlength="20" placeholder="ex: a1b2c3d4">
+              <button type="submit">Rejoindre</button>
+            </form>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Amis</span>
+            <form class="mini-form" data-find-friend-form>
+              <label for="friend-search">Chercher un pseudo</label>
+              <input id="friend-search" name="query" type="search" maxlength="20" placeholder="Pseudo">
+              <button type="submit">Chercher</button>
+            </form>
+            <div class="social-list" data-friend-results></div>
+            <span class="panel-label small">Demandes</span>
+            <div class="social-list" data-friend-requests></div>
+            <span class="panel-label small">Mes amis</span>
+            <div class="social-list" data-friend-list></div>
+          </div>
+        </aside>
+
+        <div class="chat-main app-chat-main">
+          <div class="chat-tools">
+            <label class="sr-only" for="chat-search">Rechercher</label>
+            <input id="chat-search" data-chat-search type="search" placeholder="Rechercher dans ce salon...">
+            <button class="button secondary" type="button" data-clear-chat-view>Nettoyer vue</button>
+          </div>
+
+          <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+
+          <div class="typing-line" data-typing-line></div>
+
+          <div class="reply-preview" data-reply-preview hidden>
+            <span data-reply-label>Reponse</span>
+            <button type="button" data-reply-cancel>Annuler</button>
+          </div>
+
+          <form class="chat-form" data-chat-form>
+            <label class="sr-only" for="chat-message">Message</label>
+            <textarea id="chat-message" name="message" maxlength="500" rows="3" placeholder="Ecris ton message..." required></textarea>
+            <div class="chat-submit-panel">
+              <span class="char-counter"><span data-char-count>0</span>/500</span>
+              <div class="quick-actions" aria-label="Actions rapides">
+                <button type="button" data-quick-message="GG">GG</button>
+                <button type="button" data-quick-message="Salut !">Salut</button>
+                <button type="button" data-quick-message="Je reviens.">AFK</button>
+                <button type="button" data-quick-message="Let's go !">Go</button>
+                <button type="button" data-quick-message="RIP moment">Rip</button>
+                <button type="button" data-quick-message="Qui lance une game ?">Game</button>
+              </div>
+              <button class="button primary" type="submit">Envoyer</button>
+            </div>
+          </form>
+          <button class="scroll-bottom" type="button" data-scroll-bottom hidden>Bas</button>
+        </div>
+
+        <aside class="member-sidebar" aria-label="Membres, arcade et options">
+          <div class="chat-panel">
+            <span class="panel-label">En ligne</span>
+            <strong data-online-count>0</strong>
+            <ul class="online-list" data-online-list>
+              <li>Aucun joueur</li>
+            </ul>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Stats</span>
+            <p><strong data-message-count>0</strong> messages charges</p>
+            <p><strong data-result-count>0</strong> visibles</p>
+          </div>
+
+          <div class="chat-panel wallet-panel">
+            <span class="panel-label">Points</span>
+            <div class="wallet-display">
+              <strong data-wallet-points>0</strong>
+              <span>RIP coins</span>
+            </div>
+            <p>Niveau <strong data-wallet-level>1</strong> / XP <strong data-wallet-xp>0</strong></p>
+            <div class="wallet-progress" aria-hidden="true"><span data-wallet-progress></span></div>
+            <small data-wallet-progress-text>0 / 120 XP vers niveau 2</small>
+            <p>Streak daily : <strong data-wallet-streak>0</strong></p>
+            <button class="button primary full" type="button" data-daily-reward>Claim daily</button>
+          </div>
+
+          <div class="chat-panel arcade-panel">
+            <span class="panel-label">Mini jeux</span>
+            <div class="feature-grid">
+              <button type="button" data-open-game="reflex">Reflex</button>
+              <button type="button" data-open-game="memory">Memory</button>
+              <button type="button" data-open-game="runner">Runner</button>
+              <button type="button" data-open-game="aim">Aim</button>
+              <button type="button" data-open-game="cipher">Code</button>
+              <button type="button" data-open-game="duel">Duel</button>
+              <button type="button" data-open-game="ttt">Morpion</button>
+            </div>
+            <p data-arcade-status>Gagne des points avec les jeux.</p>
+          </div>
+
+          <div class="chat-panel mission-panel">
+            <span class="panel-label">Missions</span>
+            <div class="mission-list" data-mission-list>Chargement missions...</div>
+          </div>
+
+          <div class="chat-panel shop-panel">
+            <span class="panel-label">Boutique</span>
+            <div class="shop-list" data-shop-list>Chargement boutique...</div>
+            <span class="panel-label small">Inventaire</span>
+            <div class="inventory-list" data-inventory-list>Aucun item.</div>
+          </div>
+
+          <div class="chat-panel leaderboard-panel">
+            <span class="panel-label">Leaderboard</span>
+            <select class="panel-search" data-leaderboard-game aria-label="Jeu du leaderboard">
+              <option value="reflex">Reflex</option>
+              <option value="memory">Memory</option>
+              <option value="runner">Runner</option>
+              <option value="aim">Aim Trainer</option>
+              <option value="cipher">Code Breaker</option>
+            </select>
+            <div class="leaderboard-list" data-leaderboard-list>Pas encore de score.</div>
+          </div>
+
+          <div class="chat-panel">
+            <span class="panel-label">Options</span>
+            <label class="mini-check">
+              <input type="checkbox" data-autoscroll checked>
+              <span>Auto-scroll</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-compact-chat>
+              <span>Compact</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-sound-alert>
+              <span>Son notif</span>
+            </label>
+            <label class="mini-check">
+              <input type="checkbox" data-pause-chat>
+              <span>Pause live</span>
+            </label>
+          </div>
+
+          <div class="chat-panel feature-panel">
+            <span class="panel-label">Features</span>
+            <div class="feature-grid">
+              <button type="button" data-theme-cycle>Theme</button>
+              <button type="button" data-toggle-focus>Focus</button>
+              <button type="button" data-toggle-left>Salons</button>
+              <button type="button" data-toggle-right>Membres</button>
+              <button type="button" data-toggle-large-text>Texte +</button>
+              <button type="button" data-copy-room-code>Code</button>
+              <button type="button" data-refresh-chat>Refresh</button>
+              <button type="button" data-export-chat>Export</button>
+            </div>
+            <p data-feature-status>Pack arcade actif : points, boutique, mini-jeux, favoris et commandes.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div class="profile-modal" data-profile-modal hidden aria-hidden="true">
+    <button class="profile-modal-backdrop" type="button" data-profile-close aria-label="Fermer le profil"></button>
+    <section class="profile-modal-card" aria-labelledby="profile-modal-name">
+      <button class="modal-close" type="button" data-profile-close>Fermer</button>
+      <div class="profile-modal-banner"></div>
+      <div class="profile-modal-head">
+        <div class="profile-avatar" data-modal-avatar>?</div>
+        <div>
+          <h2 id="profile-modal-name" class="display-name" data-modal-name>Profil</h2>
+          <p data-modal-title>Nouveau joueur</p>
+          <p class="tag" data-modal-badge hidden></p>
+        </div>
+      </div>
+      <p class="profile-bio" data-modal-bio>Aucune bio.</p>
+      <a class="profile-link" data-modal-website href="#" target="_blank" rel="noreferrer" hidden>Site perso</a>
+      <dl class="profile-meta">
+        <div>
+          <dt>Statut</dt>
+          <dd data-modal-status>En ligne</dd>
+        </div>
+        <div>
+          <dt>Compte</dt>
+          <dd data-modal-created>--</dd>
+        </div>
+      </dl>
+      <div class="profile-actions">
+        <button class="button secondary" type="button" data-modal-add-friend>Ajouter</button>
+        <button class="button primary" type="button" data-modal-dm>DM</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="arcade-modal" data-arcade-modal hidden aria-hidden="true">
+    <button class="profile-modal-backdrop" type="button" data-arcade-close aria-label="Fermer arcade"></button>
+    <section class="arcade-window" aria-labelledby="arcade-title">
+      <button class="modal-close" type="button" data-arcade-close>Fermer</button>
+      <div class="arcade-head">
+        <div>
+          <p class="eyebrow">RIP arcade</p>
+          <h2 id="arcade-title" data-arcade-title>Mini jeu</h2>
+        </div>
+        <div class="arcade-score">
+          <span>Score</span>
+          <strong data-arcade-score>0</strong>
+        </div>
+      </div>
+      <div class="arcade-stage" data-arcade-stage></div>
+      <div class="arcade-controls" data-arcade-controls></div>
+    </section>
+  </div>
+
+  <script src="../../shared/supabase/config.js?v=20260626-file-layout2"></script>
+  <script src="../../shared/supabase/client.js?v=20260626-file-layout2"></script>
+  <script src="../../shared/supabase/auth.js?v=20260626-file-layout2"></script>
+  <script src="page.js?v=20260626-file-layout2"></script>
+  <script type="module" src="chat.js?v=20260626-file-layout2"></script>
+  <script type="module" src="arcade.js?v=20260626-file-layout2"></script>
+</body>
+</html>

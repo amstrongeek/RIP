@@ -247,7 +247,7 @@ async function initAdmin() {
   await window.RipAuth.ready();
   if (!window.RipAuth.currentUser()) {
     setStatus("Connexion requise.", true);
-    window.location.href = "connexion.html";
+    window.location.href = "../login/index.html";
     return;
   }
 

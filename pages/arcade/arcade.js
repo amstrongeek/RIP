@@ -4,9 +4,9 @@ import {
   joinLocalRoom,
   listLocalRooms,
   setLocalReady
-} from "./src/services/room-service.js";
+} from "../../src/services/room-service.js";
 
-const ARCADE_VERSION = "20260626-stable-polish1";
+const ARCADE_VERSION = "20260626-file-layout2";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher", "snake", "puzzle", "rpg", "dungeon", "tycoon", "space", "platformer"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");

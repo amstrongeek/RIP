@@ -16,7 +16,7 @@ import {
   onReady,
   schemaMissing,
   walletProgress
-} from "../services/platform-service.js";
+} from "../../src/services/platform-service.js";
 
 const state = {
   context: null
@@ -418,7 +418,7 @@ function renderGameCards(container, games, launchable = false) {
       action.type = "button";
       action.dataset.openGame = game.key;
     } else {
-      action.href = game.implemented ? "arcade.html" : "#";
+      action.href = game.implemented ? "../arcade/index.html" : "#";
       if (!game.implemented) {
         action.setAttribute("aria-disabled", "true");
       }
@@ -495,8 +495,8 @@ function renderLeaderboardRows(rows) {
 }
 
 async function requirePlatform() {
-  ensureGateBox("[data-platform-setup]", "Configuration Supabase manquante", "Ajoute ton URL et ta cle publique dans supabase-config.js. Si une table manque, applique le fichier supabase-chat.sql complet dans Supabase.");
-  ensureGateBox("[data-platform-login]", "Connexion requise", "Connecte-toi pour synchroniser ton profil, tes points, ton inventaire, tes scores et le tchat.", "connexion.html", "Se connecter");
+  ensureGateBox("[data-platform-setup]", "Configuration Supabase manquante", "Ajoute ton URL et ta cle publique dans shared/supabase/config.js. Si une table manque, applique le fichier supabase-chat.sql complet dans Supabase.");
+  ensureGateBox("[data-platform-login]", "Connexion requise", "Connecte-toi pour synchroniser ton profil, tes points, ton inventaire, tes scores et le tchat.", "../login/index.html", "Se connecter");
 
   try {
     state.context = await getPlatformContext();
@@ -680,12 +680,19 @@ async function initNotificationsPage() {
 
   setStatus("Notifications synchronisees.");
 }
+function routePath(value) {
+  const url = new URL(value, window.location.href);
+  return url.pathname.replace(/\/index\.html$/, "/");
+}
+
 function markActiveNav() {
-  const current = location.pathname.split("/").pop() || "index.html";
+  const current = routePath(window.location.href);
   document.querySelectorAll(".nav a").forEach((link) => {
     const target = link.getAttribute("href");
-    if (target === current) {
+    if (target && routePath(target) === current) {
       link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
     }
   });
 }
