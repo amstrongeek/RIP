@@ -152,12 +152,36 @@ function applyNameStyle(element, user) {
   element.style.setProperty("--name-color-b", user.nameColorB || "#ffdc5e");
 }
 
+function renderHeaderAccount(user) {
+  document.querySelectorAll("[data-header-account]").forEach((element) => {
+    element.href = PAGE_ROUTES.account;
+    element.title = user && user.pseudo ? `Profil de ${user.pseudo}` : "Ouvrir mon profil";
+  });
+
+  document.querySelectorAll("[data-header-name]").forEach((element) => {
+    element.textContent = user && user.pseudo ? user.pseudo : "Compte";
+  });
+
+  document.querySelectorAll("[data-header-avatar]").forEach((element) => {
+    if (user) {
+      setAvatar(element, user);
+      return;
+    }
+
+    element.replaceChildren();
+    element.removeAttribute("data-avatar-frame");
+    element.style.removeProperty("--avatar-color");
+    element.textContent = "?";
+  });
+}
+
 function applyProfile(user) {
   if (!user) {
     return;
   }
 
   document.body.dataset.profileTheme = user.profileTheme || "default";
+  renderHeaderAccount(user);
   document.querySelectorAll("[data-profile-avatar]").forEach((element) => setAvatar(element, user));
 
   document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
@@ -232,6 +256,7 @@ async function updateAuthVisibility() {
   }
 
   document.body.classList.toggle("is-authenticated", Boolean(user));
+  renderHeaderAccount(user);
 
   document.querySelectorAll("[data-auth-visible]").forEach((element) => {
     const rule = element.getAttribute("data-auth-visible");
@@ -266,8 +291,6 @@ const MAIN_NAV_ITEMS = [
   { href: PAGE_ROUTES.shop, label: "Boutique" },
   { href: PAGE_ROUTES.leaderboards, label: "Classements" },
   { href: PAGE_ROUTES.achievements, label: "Succes" },
-  { href: PAGE_ROUTES.login, label: "Connexion", auth: "guest" },
-  { href: PAGE_ROUTES.account, label: "Profil", auth: "user" },
   { href: PAGE_ROUTES.admin, label: "Admin", auth: "admin", hidden: true }
 ];
 
@@ -300,12 +323,20 @@ function normalizeNavigation() {
 }
 
 function bindNavigationMenu() {
-  document.querySelectorAll("[data-nav-toggle]").forEach((button) => {
-    const nav = button.parentElement ? button.parentElement.querySelector("[data-main-nav]") : document.querySelector("[data-main-nav]");
+  document.querySelectorAll("[data-nav-toggle]").forEach((button, index) => {
+    const header = button.closest(".site-header");
+    const nav = header ? header.querySelector("[data-main-nav]") : document.querySelector("[data-main-nav]");
 
     if (!nav) {
       return;
     }
+
+    if (!nav.id) {
+      nav.id = `main-navigation-${index + 1}`;
+    }
+
+    button.setAttribute("aria-controls", nav.id);
+    nav.dataset.open = "false";
 
     const close = () => {
       nav.dataset.open = "false";
@@ -313,33 +344,65 @@ function bindNavigationMenu() {
       document.body.classList.remove("nav-open");
     };
 
+    const open = () => {
+      nav.dataset.open = "true";
+      button.setAttribute("aria-expanded", "true");
+      document.body.classList.add("nav-open");
+    };
+
     button.addEventListener("click", (event) => {
+      event.preventDefault();
       event.stopPropagation();
-      const open = nav.dataset.open !== "true";
-      nav.dataset.open = String(open);
-      button.setAttribute("aria-expanded", String(open));
-      document.body.classList.toggle("nav-open", open);
+
+      if (nav.dataset.open === "true") {
+        close();
+        return;
+      }
+
+      open();
     });
 
     nav.addEventListener("click", (event) => {
-      const link = event.target.closest("a");
+      const link = event.target.closest("a[href]");
+
       if (link) {
-        window.setTimeout(close, 0);
+        const target = link.getAttribute("target");
+        const href = link.href;
+
+        if (routePath(href) === routePath(window.location.href)) {
+          event.preventDefault();
+          close();
+          return;
+        }
+
+        if (!target || target === "_self") {
+          event.preventDefault();
+          window.location.href = href;
+        }
         return;
       }
 
       event.stopPropagation();
     });
 
-    document.addEventListener("click", () => {
-      if (nav.dataset.open === "true") {
-        close();
+    document.addEventListener("click", (event) => {
+      if (nav.dataset.open !== "true") {
+        return;
       }
-    });
+
+      if (nav.contains(event.target) || button.contains(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }, true);
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && nav.dataset.open === "true") {
         close();
+        button.focus();
       }
     });
   });

@@ -3547,3 +3547,129 @@ body[data-profile-theme="candy"] {
     display: grid;
   }
 }
+
+
+/* Header account and stable navigation controls. */
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.header-login,
+.account-chip {
+  position: relative;
+  z-index: 82;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 3px solid var(--black);
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: 3px 3px 0 var(--black);
+  font-size: 0.58rem;
+  line-height: 1.2;
+}
+
+.header-login {
+  padding: 10px 12px;
+  background: var(--accent);
+  color: var(--black);
+}
+
+.account-chip {
+  gap: 8px;
+  max-width: min(260px, 42vw);
+  padding: 6px 10px 6px 6px;
+}
+
+.header-login:hover,
+.header-login:focus,
+.account-chip:hover,
+.account-chip:focus {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--black);
+  border-color: var(--accent-2);
+}
+
+.account-chip-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid var(--black);
+  background: var(--avatar-color, var(--accent));
+  color: var(--black);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.account-chip-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav[data-main-nav] a[data-auth-visible="guest"],
+.nav[data-main-nav] a[data-auth-visible="user"] {
+  display: none !important;
+}
+
+.nav[data-main-nav] {
+  touch-action: pan-y;
+}
+
+body.nav-open::before {
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .site-header {
+    gap: 10px;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .header-login {
+    padding-inline: 10px;
+  }
+
+  .account-chip {
+    max-width: 48vw;
+  }
+
+  .account-chip-name {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 460px) {
+  .header-login {
+    font-size: 0.52rem;
+  }
+
+  .account-chip {
+    max-width: 44vw;
+    padding-right: 8px;
+  }
+
+  .account-chip-avatar {
+    width: 28px;
+    height: 28px;
+  }
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RIP #TUFF | Boutique</title>
   <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
-  <link rel="stylesheet" href="shop.css?v=20260626-named-files1">
+  <link rel="stylesheet" href="shop.css?v=20260626-nav-account2">
 </head>
 <body class="app-body" data-platform-page="shop">
   <header class="site-header app-header">
@@ -13,7 +13,14 @@
       <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
       <span>RIP #TUFF</span>
     </a>
-    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+    <div class="header-actions" data-header-actions>
+      <a class="header-login" href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a class="account-chip" href="../account/account-profile.html" data-header-account data-auth-visible="user" aria-label="Ouvrir mon profil">
+        <span class="account-chip-avatar" data-header-avatar>?</span>
+        <span class="account-chip-name" data-header-name>Compte</span>
+      </a>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+    </div>
 
         <nav class="nav" data-main-nav aria-label="Navigation principale">
       <a href="../home/home.html">Accueil</a>
@@ -23,8 +30,6 @@
       <a href="../shop/shop.html">Boutique</a>
       <a href="../leaderboards/leaderboards.html">Classements</a>
       <a href="../achievements/achievements.html">Succes</a>
-      <a href="../login/login.html" data-auth-visible="guest">Connexion</a>
-      <a href="../account/account-profile.html" data-auth-visible="user">Profil</a>
       <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
     </nav>
   </header>
@@ -94,11 +99,11 @@
     <span>&copy; <span id="year"></span> Tous droits reserves.</span>
   </footer>
 
-  <script src="../../shared/supabase/public-config.js?v=20260626-named-files1"></script>
-  <script src="../../shared/supabase/data-service.js?v=20260626-named-files1"></script>
-  <script src="../../shared/supabase/auth-session.js?v=20260626-named-files1"></script>
-  <script src="shop-page.js?v=20260626-named-files1"></script>
-  <script type="module" src="shop-data.js?v=20260626-named-files1"></script>
-  <script type="module" src="shop-arcade-games.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/public-config.js?v=20260626-nav-account2"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260626-nav-account2"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260626-nav-account2"></script>
+  <script src="shop-page.js?v=20260626-nav-account2"></script>
+  <script type="module" src="shop-data.js?v=20260626-nav-account2"></script>
+  <script type="module" src="shop-arcade-games.js?v=20260626-nav-account2"></script>
 </body>
 </html>

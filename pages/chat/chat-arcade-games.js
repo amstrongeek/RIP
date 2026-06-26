@@ -6,7 +6,7 @@ import {
   setLocalReady
 } from "../../src/services/game-room-service.js";
 
-const ARCADE_VERSION = "20260626-named-files1";
+const ARCADE_VERSION = "20260626-nav-account2";
 const SOLO_GAMES = new Set(["reflex", "memory", "runner", "aim", "cipher", "snake", "puzzle", "rpg", "dungeon", "tycoon", "space", "platformer"]);
 
 const walletPoints = document.querySelector("[data-wallet-points]");
