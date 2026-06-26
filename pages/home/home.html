@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Accueil</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="home.css?v=20260626-named-files1">
+</head>
+<body class="app-body home-body" data-platform-page="home">
+  <header class="site-header app-header">
+    <a class="logo brand-logo" href="../home/home.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+    <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/home.html">Accueil</a>
+      <a href="../chat/chat.html">Tchat</a>
+      <a href="../dashboard/dashboard.html">Dashboard</a>
+      <a href="../arcade/arcade.html">Arcade</a>
+      <a href="../shop/shop.html">Boutique</a>
+      <a href="../leaderboards/leaderboards.html">Classements</a>
+      <a href="../achievements/achievements.html">Succes</a>
+      <a href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/account-profile.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="home-page">
+    <section class="home-hero" aria-labelledby="home-title">
+      <div class="home-hero-content">
+        <p class="eyebrow">RIP #TUFF</p>
+        <h1 id="home-title">Bienvenue sur RIP #TUFF</h1>
+        <p class="platform-lead">Tchat, arcade, boutique et profil joueur au meme endroit.</p>
+        <div class="home-actions">
+          <a class="button primary" href="../chat/chat.html">Ouvrir le tchat</a>
+          <a class="button secondary" href="../arcade/arcade.html">Jouer</a>
+          <a class="button secondary" href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Rejoindre Discord</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section discord-invite-section" aria-labelledby="discord-title">
+      <div class="discord-invite-card">
+        <img class="discord-banner" src="../../assets/brand/rip-tuff-banner.png" alt="Banniere JOIN RIP #TUFF">
+        <div class="discord-content">
+          <img class="discord-logo" src="../../assets/brand/rip-logo.png" alt="Logo RIP">
+          <div>
+            <p class="eyebrow">Discord officiel</p>
+            <h2 id="discord-title">Rejoins RIP #TUFF</h2>
+            <p class="platform-lead">Passe sur le Discord pour les annonces, le tchat communaute et les prochains events.</p>
+            <div class="home-actions">
+              <a class="button primary" href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Rejoindre Discord</a>
+              <a class="button secondary" href="../chat/chat.html">Ouvrir le tchat</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section bug-section" aria-labelledby="bug-title">
+      <div>
+        <p class="eyebrow">Bug report</p>
+        <h2 id="bug-title">Signaler un bug</h2>
+        <p class="platform-lead">Le signalement est enregistre dans Supabase. Le webhook Discord sera branche cote serveur plus tard.</p>
+      </div>
+      <form class="bug-form" data-bug-form>
+        <div class="field">
+          <label for="bug-title-input">Titre</label>
+          <input id="bug-title-input" class="panel-search" name="title" type="text" maxlength="80" required placeholder="Ex: impossible de lancer Snake">
+        </div>
+        <div class="field">
+          <label for="bug-body-input">Details</label>
+          <textarea id="bug-body-input" class="panel-search" name="body" maxlength="600" rows="5" required placeholder="Explique ce que tu faisais et ce qui s'est passe."></textarea>
+        </div>
+        <button class="button primary" type="submit">Envoyer le bug</button>
+        <p class="form-message" data-bug-message role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP #TUFF</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="../../shared/supabase/public-config.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260626-named-files1"></script>
+  <script src="home-page.js?v=20260626-named-files1"></script>
+</body>
+</html>

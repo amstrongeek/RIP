@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Classements</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="leaderboards.css?v=20260626-named-files1">
+</head>
+<body class="app-body" data-platform-page="leaderboards">
+  <header class="site-header app-header">
+    <a class="logo brand-logo" href="../home/home.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+
+        <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/home.html">Accueil</a>
+      <a href="../chat/chat.html">Tchat</a>
+      <a href="../dashboard/dashboard.html">Dashboard</a>
+      <a href="../arcade/arcade.html">Arcade</a>
+      <a href="../shop/shop.html">Boutique</a>
+      <a href="../leaderboards/leaderboards.html">Classements</a>
+      <a href="../achievements/achievements.html">Succes</a>
+      <a href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/account-profile.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="platform-page">
+    <section class="platform-shell">
+      <div class="platform-hero slim">
+        <div>
+          <p class="eyebrow">Leaderboards</p>
+          <h1>Top joueurs</h1>
+          <p class="platform-lead">Top 10 par mini-jeu, branche sur les scores Supabase en temps reel cote lecture.</p>
+        </div>
+        <div class="platform-status" data-platform-status>Initialisation...</div>
+      </div>
+
+      <section class="platform-panel">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Classement jeu</p>
+            <h2>Scoreboard</h2>
+          </div>
+          <select class="panel-search" data-platform-leaderboard-game aria-label="Jeu du classement">
+            <option value="reflex">Reflex Blitz</option>
+            <option value="memory">Memory Grid</option>
+            <option value="runner">Neon Runner</option>
+            <option value="aim">Aim Trainer</option>
+            <option value="cipher">Code Breaker</option>
+            <option value="snake">Snake moderne</option>
+            <option value="puzzle">Puzzle Slider</option>
+            <option value="rpg">Mini RPG</option>
+            <option value="dungeon">Dungeon Runner</option>
+            <option value="tycoon">Tycoon Idle</option>
+            <option value="space">Space Shooter</option>
+            <option value="platformer">Pixel Platformer</option>
+          </select>
+        </div>
+        <div class="leaderboard-table" data-platform-leaderboard>Chargement...</div>
+      </section>
+
+      <section class="platform-panel">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">A venir</p>
+            <h2>Classements globaux</h2>
+          </div>
+          <span class="tag">roadmap</span>
+        </div>
+        <div class="platform-grid">
+          <article class="stat-card"><span>Hebdo</span><strong>Top XP</strong><small>pret pour agregation SQL</small></article>
+          <article class="stat-card"><span>Mensuel</span><strong>Top coins</strong><small>pret pour wallet ranking</small></article>
+          <article class="stat-card"><span>Multi</span><strong>Top wins</strong><small>duels + morpion</small></article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP Classements</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="../../shared/supabase/public-config.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260626-named-files1"></script>
+  <script src="leaderboards-page.js?v=20260626-named-files1"></script>
+  <script type="module" src="leaderboards-data.js?v=20260626-named-files1"></script>
+</body>
+</html>

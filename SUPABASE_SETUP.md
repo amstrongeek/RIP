@@ -57,7 +57,7 @@ Ne copie jamais une cle `service_role`, `secret`, ou `sb_secret`.
 
 ## 4. Coller les infos dans le site
 
-Ouvre `shared/supabase/config.js` et remplace les valeurs vides :
+Ouvre `shared/supabase/public-config.js` et remplace les valeurs vides :
 
 ```js
 window.RIP_SUPABASE = {

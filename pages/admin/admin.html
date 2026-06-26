@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Admin</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="admin.css?v=20260626-named-files1">
+</head>
+<body class="app-body" data-platform-page="admin">
+  <header class="site-header app-header">
+    <a class="logo brand-logo" href="../home/home.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+    <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/home.html">Accueil</a>
+      <a href="../chat/chat.html">Tchat</a>
+      <a href="../dashboard/dashboard.html">Dashboard</a>
+      <a href="../arcade/arcade.html">Arcade</a>
+      <a href="../shop/shop.html">Boutique</a>
+      <a href="../leaderboards/leaderboards.html">Classements</a>
+      <a href="../achievements/achievements.html">Succes</a>
+      <a href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/account-profile.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="platform-page">
+    <section class="platform-shell">
+      <div class="platform-hero slim">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h1>Console RIP</h1>
+          <p class="platform-lead">Actions sensibles executees par RPC Supabase securisees.</p>
+        </div>
+        <div class="platform-status" data-admin-status>Initialisation...</div>
+      </div>
+
+      <div class="setup-box" data-admin-blocked hidden>
+        <strong>Acces refuse</strong>
+        <p>Ton compte n'est pas dans <code>admin_roles</code>. Ajoute ton UUID via SQL pour activer cette page.</p>
+      </div>
+
+      <div class="admin-grid" data-admin-shell hidden>
+        <section class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Stats</p>
+              <h2>Global</h2>
+            </div>
+            <button class="button secondary" type="button" data-admin-refresh>Refresh</button>
+          </div>
+          <div class="platform-grid" data-admin-stats></div>
+        </section>
+
+        <section class="platform-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="eyebrow">Utilisateurs</p>
+              <h2>Comptes</h2>
+            </div>
+          </div>
+          <div class="admin-list" data-admin-users>Chargement...</div>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Wallet</p>
+          <h2>Modifier points / XP / niveau</h2>
+          <form class="admin-form" data-wallet-form>
+            <input class="panel-search" name="user_id" placeholder="UUID utilisateur" required>
+            <input class="panel-search" name="points" type="number" placeholder="Points">
+            <input class="panel-search" name="xp" type="number" placeholder="XP">
+            <input class="panel-search" name="level" type="number" placeholder="Niveau">
+            <button class="button primary" type="submit">Appliquer</button>
+          </form>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Inventaire</p>
+          <h2>Ajouter un item</h2>
+          <form class="admin-form" data-grant-form>
+            <input class="panel-search" name="user_id" placeholder="UUID utilisateur" required>
+            <input class="panel-search" name="item_key" placeholder="item_key boutique" required>
+            <button class="button primary" type="submit">Ajouter</button>
+          </form>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Boutique</p>
+          <h2>Creer / modifier item</h2>
+          <form class="admin-form" data-item-form>
+            <input class="panel-search" name="item_key" placeholder="item_key" required>
+            <input class="panel-search" name="name" placeholder="Nom" required>
+            <input class="panel-search" name="description" placeholder="Description">
+            <input class="panel-search" name="price" type="number" placeholder="Prix" value="100">
+            <input class="panel-search" name="item_type" placeholder="item_type" value="cosmetic">
+            <input class="panel-search" name="rarity" placeholder="rarity" value="common">
+            <input class="panel-search" name="category" placeholder="category" value="cosmetic">
+            <input class="panel-search" name="equip_slot" placeholder="equip_slot" value="none">
+            <textarea class="panel-search" name="payload" rows="4" placeholder='{"key":"value"}'>{}</textarea>
+            <button class="button primary" type="submit">Sauvegarder item</button>
+          </form>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Moderation</p>
+          <h2>Tchat</h2>
+          <form class="admin-form" data-announcement-form>
+            <input class="panel-search" name="body" placeholder="Annonce tchat" required>
+            <button class="button primary" type="submit">Envoyer annonce</button>
+          </form>
+          <form class="admin-form" data-delete-message-form>
+            <input class="panel-search" name="message_id" type="number" placeholder="ID message" required>
+            <button class="button secondary" type="submit">Supprimer message</button>
+          </form>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Jeux</p>
+          <h2>Activation / équilibrage</h2>
+          <form class="admin-form" data-game-enabled-form>
+            <input class="panel-search" name="game_key" placeholder="game_key" required>
+            <select class="panel-search" name="enabled">
+              <option value="true">Actif</option>
+              <option value="false">Desactive</option>
+            </select>
+            <button class="button primary" type="submit">Changer etat</button>
+          </form>
+          <form class="admin-form" data-game-balance-form>
+            <input class="panel-search" name="game_key" placeholder="game_key" required>
+            <input class="panel-search" name="score_cap" type="number" placeholder="Score cap">
+            <input class="panel-search" name="reward_min" type="number" placeholder="Reward min">
+            <input class="panel-search" name="reward_max" type="number" placeholder="Reward max">
+            <input class="panel-search" name="cooldown" type="number" placeholder="Cooldown secondes">
+            <button class="button secondary" type="submit">Equilibrer</button>
+          </form>
+        </section>
+
+        <section class="platform-panel">
+          <p class="eyebrow">Logs</p>
+          <h2>Actions admin</h2>
+          <div class="admin-list" data-admin-logs>Chargement...</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP Admin</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="../../shared/supabase/public-config.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260626-named-files1"></script>
+  <script src="admin-page.js?v=20260626-named-files1"></script>
+  <script type="module" src="admin-console.js?v=20260626-named-files1"></script>
+</body>
+</html>

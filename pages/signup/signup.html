@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIP #TUFF | Inscription</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="signup.css?v=20260626-named-files1">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo brand-logo" href="../home/home.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
+
+            <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/home.html">Accueil</a>
+      <a href="../chat/chat.html">Tchat</a>
+      <a href="../dashboard/dashboard.html">Dashboard</a>
+      <a href="../arcade/arcade.html">Arcade</a>
+      <a href="../shop/shop.html">Boutique</a>
+      <a href="../leaderboards/leaderboards.html">Classements</a>
+      <a href="../achievements/achievements.html">Succes</a>
+      <a href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a href="../account/account-profile.html" data-auth-visible="user">Profil</a>
+      <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
+    </nav>
+  </header>
+
+  <main class="auth-page">
+    <section class="auth-panel wide" aria-labelledby="signup-title">
+      <p class="eyebrow">Inscription</p>
+      <h1 id="signup-title">Cree ton compte.</h1>
+      <p class="auth-note">
+        Le compte sera enregistre dans Supabase et utilisable sur le site publie.
+      </p>
+
+      <form class="auth-form" id="signup-form" novalidate>
+        <div class="field">
+          <label for="signup-pseudo">Pseudo</label>
+          <input id="signup-pseudo" name="pseudo" type="text" autocomplete="username" minlength="3" maxlength="20" required>
+          <small>3 a 20 caracteres : lettres, chiffres, tiret et underscore.</small>
+        </div>
+
+        <div class="field">
+          <label for="signup-email">Email</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" required>
+        </div>
+
+        <div class="field">
+          <label for="signup-password">Mot de passe</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="12" required>
+          <div class="password-meter" aria-hidden="true">
+            <span data-password-meter></span>
+          </div>
+          <small id="password-help">Minimum 12 caracteres avec majuscule, minuscule, chiffre et symbole.</small>
+        </div>
+
+        <div class="field">
+          <label for="signup-confirm">Confirmer</label>
+          <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required>
+        </div>
+
+        <label class="check-row" for="signup-accept">
+          <input id="signup-accept" name="accept" type="checkbox" required>
+          <span>J'accepte de creer un compte Supabase pour utiliser le site.</span>
+        </label>
+
+        <button class="button primary full" type="submit">Creer le compte</button>
+        <p class="form-message" id="signup-message" role="status" aria-live="polite"></p>
+      </form>
+
+      <p class="auth-switch">
+        Deja inscrit ?
+        <a href="../login/login.html">Se connecter</a>
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <script src="../../shared/supabase/public-config.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260626-named-files1"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260626-named-files1"></script>
+  <script src="signup-page.js?v=20260626-named-files1"></script>
+</body>
+</html>
