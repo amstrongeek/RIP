@@ -128,8 +128,43 @@
         </section>
       </div>
 
+      <section class="profile-card share-card-panel" data-profile-share aria-labelledby="profile-share-title">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">Flex card</p>
+            <h2 id="profile-share-title">Carte de stats a telecharger</h2>
+          </div>
+          <div class="profile-actions">
+            <button class="button secondary" type="button" data-share-copy>Copier stats</button>
+            <button class="button primary" type="button" data-share-download>Telecharger PNG</button>
+          </div>
+        </div>
+
+        <div class="share-card-layout">
+          <div class="share-card-preview">
+            <canvas data-share-card-canvas width="1080" height="760" aria-label="Carte de statistiques RIP TUFF"></canvas>
+          </div>
+
+          <div class="share-stat-grid">
+            <article class="share-stat"><span>Niveau</span><strong data-share-level>1</strong></article>
+            <article class="share-stat"><span>Coins</span><strong data-share-points>0</strong></article>
+            <article class="share-stat"><span>XP</span><strong data-share-xp>0</strong></article>
+            <article class="share-stat"><span>Streak</span><strong data-share-streak>0</strong></article>
+            <article class="share-stat"><span>Messages</span><strong data-share-messages>0</strong></article>
+            <article class="share-stat"><span>Parties</span><strong data-share-games>0</strong></article>
+            <article class="share-stat"><span>Succes</span><strong data-share-achievements>0/0</strong></article>
+            <article class="share-stat"><span>Inventaire</span><strong data-share-inventory>0</strong></article>
+            <article class="share-stat"><span>Best score</span><strong data-share-best-score>0</strong></article>
+            <article class="share-stat"><span>Best jeu</span><strong data-share-best-game>--</strong></article>
+            <article class="share-stat wide"><span>Total rewards</span><strong data-share-total-rewards>0</strong></article>
+          </div>
+        </div>
+        <p class="form-message" data-share-status role="status" aria-live="polite"></p>
+      </section>
+
       <div class="profile-actions">
         <a class="button secondary" href="chat.html">Aller au tchat</a>
+        <a class="button secondary" href="notifications.html">Voir mes notifs</a>
         <button class="button secondary" type="button" data-logout>Deconnexion</button>
       </div>
     </section>

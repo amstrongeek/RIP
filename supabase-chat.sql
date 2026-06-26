@@ -2792,6 +2792,126 @@ revoke all on function public.get_platform_health() from public, anon, authentic
 grant execute on function public.submit_bug_report(text, text, text, text) to anon, authenticated;
 grant execute on function public.get_platform_health() to anon, authenticated;
 
+create or replace function public.get_my_profile_card_stats()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  profile_row jsonb;
+  wallet_row jsonb;
+  stats_row jsonb;
+  recent_rows jsonb;
+  achievements_unlocked integer;
+  achievements_total integer;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  perform public.ensure_wallet(auth.uid());
+
+  select to_jsonb(p)
+  into profile_row
+  from public.profiles p
+  where p.id = auth.uid();
+
+  select to_jsonb(w)
+  into wallet_row
+  from public.user_wallets w
+  where w.user_id = auth.uid();
+
+  select
+    (count(*) filter (where unlocked))::integer,
+    count(*)::integer
+  into achievements_unlocked, achievements_total
+  from public.get_my_achievements();
+
+  select coalesce(jsonb_agg(to_jsonb(s) order by s.created_at desc), '[]'::jsonb)
+  into recent_rows
+  from (
+    select game_key, score, reward_points, created_at
+    from public.game_scores
+    where user_id = auth.uid()
+    order by created_at desc
+    limit 12
+  ) s;
+
+  select jsonb_build_object(
+    'messages_count', (select count(*)::integer from public.chat_messages where user_id = auth.uid()::text),
+    'games_count', (select count(*)::integer from public.game_scores where user_id = auth.uid()),
+    'inventory_count', (select count(*)::integer from public.user_inventory where user_id = auth.uid()),
+    'achievements_unlocked', coalesce(achievements_unlocked, 0),
+    'achievements_total', coalesce(achievements_total, 0),
+    'best_score', (select coalesce(max(score), 0)::integer from public.game_scores where user_id = auth.uid()),
+    'best_game', (
+      select coalesce(game_key, '--')
+      from public.game_scores
+      where user_id = auth.uid()
+      order by score desc, created_at desc
+      limit 1
+    ),
+    'total_rewards', (select coalesce(sum(reward_points), 0)::integer from public.game_scores where user_id = auth.uid())
+  )
+  into stats_row;
+
+  return jsonb_build_object(
+    'profile', coalesce(profile_row, '{}'::jsonb),
+    'wallet', coalesce(wallet_row, '{}'::jsonb),
+    'stats', coalesce(stats_row, '{}'::jsonb),
+    'recent_scores', coalesce(recent_rows, '[]'::jsonb)
+  );
+end;
+$$;
+
+grant execute on function public.get_my_profile_card_stats() to authenticated;
+
+create or replace function public.get_platform_health()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  return jsonb_build_object(
+    'tables', jsonb_build_object(
+      'profiles', to_regclass('public.profiles') is not null,
+      'chat_rooms', to_regclass('public.chat_rooms') is not null,
+      'chat_messages', to_regclass('public.chat_messages') is not null,
+      'shop_items', to_regclass('public.shop_items') is not null,
+      'user_wallets', to_regclass('public.user_wallets') is not null,
+      'user_inventory', to_regclass('public.user_inventory') is not null,
+      'game_scores', to_regclass('public.game_scores') is not null,
+      'user_missions', to_regclass('public.user_missions') is not null,
+      'user_achievements', to_regclass('public.user_achievements') is not null,
+      'user_notifications', to_regclass('public.user_notifications') is not null,
+      'bug_reports', to_regclass('public.bug_reports') is not null,
+      'admin_roles', to_regclass('public.admin_roles') is not null
+    ),
+    'functions', jsonb_build_object(
+      'get_my_wallet', to_regprocedure('public.get_my_wallet()') is not null,
+      'complete_solo_game', to_regprocedure('public.complete_solo_game(text,integer)') is not null,
+      'purchase_shop_item', to_regprocedure('public.purchase_shop_item(text)') is not null,
+      'equip_shop_item', to_regprocedure('public.equip_shop_item(text)') is not null,
+      'get_my_missions', to_regprocedure('public.get_my_missions()') is not null,
+      'get_my_achievements', to_regprocedure('public.get_my_achievements()') is not null,
+      'get_my_notifications', to_regprocedure('public.get_my_notifications(integer)') is not null,
+      'update_my_profile', to_regprocedure('public.update_my_profile(text,text,text,text,text)') is not null,
+      'get_my_profile_card_stats', to_regprocedure('public.get_my_profile_card_stats()') is not null,
+      'submit_bug_report', to_regprocedure('public.submit_bug_report(text,text,text,text)') is not null,
+      'is_admin', to_regprocedure('public.is_admin()') is not null
+    ),
+    'is_authenticated', auth.uid() is not null,
+    'is_admin', public.is_admin()
+  );
+end;
+$$;
+
+grant execute on function public.get_platform_health() to anon, authenticated;
+
 -- Pour activer le premier admin, remplace l'UUID puis execute une seule fois.
 -- Ce bloc ne bloque pas le script si l'utilisateur n'existe pas encore.
 do $$

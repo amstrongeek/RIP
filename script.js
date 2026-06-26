@@ -251,11 +251,7 @@ const MAIN_NAV_ITEMS = [
   { href: "boutique.html", label: "Boutique" },
   { href: "classements.html", label: "Classements" },
   { href: "succes.html", label: "Succes" },
-  { href: "notifications.html", label: "Notifs" },
-  { href: "supabase-config.html", label: "Config Supabase" },
-  { href: "https://discord.gg/9j5Nxuk2sH", label: "Discord", external: true },
   { href: "connexion.html", label: "Connexion", auth: "guest" },
-  { href: "inscription.html", label: "Inscription", auth: "guest" },
   { href: "compte.html", label: "Profil", auth: "user" },
   { href: "admin.html", label: "Admin", auth: "admin", hidden: true }
 ];
@@ -311,9 +307,8 @@ function bindNavigationMenu() {
     });
 
     nav.addEventListener("click", (event) => {
-      event.stopPropagation();
-
-      if (event.target.closest("a")) {
+      const link = event.target.closest("a");
+      if (link) {
         close();
       }
     });
@@ -341,75 +336,6 @@ function markCurrentNavigation() {
     } else {
       link.removeAttribute("aria-current");
     }
-  });
-}
-
-function bindSupabaseConfigPage() {
-  const page = document.querySelector("[data-supabase-config-page]");
-
-  if (!page) {
-    return;
-  }
-
-  const config = window.RipSupabase ? window.RipSupabase.getConfig() : { url: "", anonKey: "" };
-  const tableNames = [
-    "profiles",
-    "chat_rooms",
-    "room_members",
-    "chat_messages",
-    "message_reactions",
-    "message_reports",
-    "friend_requests",
-    "user_wallets",
-    "point_ledger",
-    "shop_items",
-    "user_inventory",
-    "game_scores",
-    "game_duels",
-    "tic_tac_toe_games",
-    "user_missions",
-    "user_achievements",
-    "user_notifications",
-    "game_settings",
-    "admin_roles",
-    "admin_logs",
-    "bug_reports"
-  ];
-  const snippet = `window.RIP_SUPABASE = {
-  url: "${config.url || "https://TON-PROJET.supabase.co"}",
-  // Cle publique anon/publishable uniquement. Jamais service_role ou sb_secret.
-  anonKey: "${config.anonKey || "TON_ANON_KEY"}"
-};`;
-
-  document.querySelectorAll("[data-config-url]").forEach((element) => {
-    element.textContent = config.url || "Non configure";
-  });
-
-  document.querySelectorAll("[data-config-key]").forEach((element) => {
-    element.textContent = config.anonKey || "Non configure";
-  });
-
-  document.querySelectorAll("[data-config-tables]").forEach((element) => {
-    element.textContent = tableNames.join(", ");
-  });
-
-  document.querySelectorAll("[data-config-code]").forEach((element) => {
-    element.textContent = snippet;
-  });
-
-  document.querySelectorAll("[data-copy-config]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(snippet);
-        button.textContent = "Copie";
-        window.setTimeout(() => {
-          button.textContent = "Copier";
-        }, 1800);
-      } catch (error) {
-        console.error("Copie config:", error);
-        button.textContent = "Copie impossible";
-      }
-    });
   });
 }
 
@@ -573,6 +499,7 @@ async function bindAccountPage() {
   const bioCounter = document.querySelector("[data-profile-bio-count]");
   const statsMessages = document.querySelector("[data-account-messages]");
   const statsLastMessage = document.querySelector("[data-account-last-message]");
+  await bindProfileShareCard(user);
 
   if (form) {
     if (form.elements.pseudo) {
@@ -615,6 +542,263 @@ async function bindAccountPage() {
     } catch (error) {
       console.error("Erreur stats:", error);
     }
+  }
+}
+
+function safeStat(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function statLabel(gameKey) {
+  const labels = {
+    aim: "Aim",
+    cipher: "Code",
+    dungeon: "Dungeon",
+    memory: "Memory",
+    platformer: "Platformer",
+    puzzle: "Puzzle",
+    reflex: "Reflex",
+    rpg: "RPG",
+    runner: "Runner",
+    snake: "Snake",
+    space: "Space",
+    tycoon: "Tycoon"
+  };
+  return labels[gameKey] || gameKey || "--";
+}
+
+function profileStatsFallback(user) {
+  return {
+    profile: user,
+    wallet: {
+      points: 0,
+      total_points: 0,
+      xp: 0,
+      level: 1,
+      streak: 0
+    },
+    stats: {
+      messages_count: 0,
+      games_count: 0,
+      inventory_count: 0,
+      achievements_unlocked: 0,
+      achievements_total: 0,
+      best_score: 0,
+      best_game: "--",
+      total_rewards: 0
+    },
+    recent_scores: []
+  };
+}
+
+function renderShareStats(statsData) {
+  const data = statsData || profileStatsFallback(window.RipAuth && window.RipAuth.currentUser());
+  const stats = data.stats || {};
+  const wallet = data.wallet || {};
+  const bestGame = statLabel(stats.best_game);
+
+  const values = {
+    "[data-share-level]": wallet.level || 1,
+    "[data-share-points]": wallet.points || 0,
+    "[data-share-xp]": wallet.xp || 0,
+    "[data-share-streak]": wallet.streak || 0,
+    "[data-share-messages]": stats.messages_count || 0,
+    "[data-share-games]": stats.games_count || 0,
+    "[data-share-inventory]": stats.inventory_count || 0,
+    "[data-share-achievements]": `${stats.achievements_unlocked || 0}/${stats.achievements_total || 0}`,
+    "[data-share-best-score]": stats.best_score || 0,
+    "[data-share-best-game]": bestGame,
+    "[data-share-total-rewards]": stats.total_rewards || 0
+  };
+
+  Object.entries(values).forEach(([selector, value]) => {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.textContent = String(value);
+    });
+  });
+}
+
+function drawPixelCard(canvas, user, statsData) {
+  const context = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const data = statsData || profileStatsFallback(user);
+  const stats = data.stats || {};
+  const wallet = data.wallet || {};
+  const pseudo = user.pseudo || "Player";
+
+  context.imageSmoothingEnabled = false;
+  context.fillStyle = "#101014";
+  context.fillRect(0, 0, width, height);
+
+  for (let x = 0; x < width; x += 28) {
+    context.strokeStyle = "rgba(255,255,255,0.045)";
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  for (let y = 0; y < height; y += 28) {
+    context.strokeStyle = "rgba(255,255,255,0.045)";
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "rgba(255,59,189,0.32)");
+  gradient.addColorStop(0.5, "rgba(57,255,136,0.14)");
+  gradient.addColorStop(1, "rgba(255,220,94,0.26)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "#050506";
+  context.lineWidth = 18;
+  context.strokeRect(9, 9, width - 18, height - 18);
+  context.strokeStyle = "#39ff88";
+  context.lineWidth = 5;
+  context.strokeRect(28, 28, width - 56, height - 56);
+
+  context.fillStyle = "#050506";
+  context.fillRect(50, 56, width - 100, 96);
+  context.fillStyle = "#ffdc5e";
+  context.font = "24px 'Press Start 2P', monospace";
+  context.fillText("RIP #TUFF PLAYER CARD", 74, 95);
+  context.fillStyle = "#c6c6d6";
+  context.font = "15px 'Press Start 2P', monospace";
+  context.fillText("CARTE DE STATS OFFICIELLE", 76, 130);
+
+  context.fillStyle = user.avatarColor || "#39ff88";
+  context.fillRect(70, 190, 132, 132);
+  context.fillStyle = "#050506";
+  context.fillRect(82, 202, 108, 108);
+  context.fillStyle = user.avatarColor || "#39ff88";
+  context.font = "68px 'Press Start 2P', monospace";
+  context.fillText(pseudo.slice(0, 1).toUpperCase(), 112, 286);
+
+  context.fillStyle = "#f8f8f2";
+  context.font = "34px 'Press Start 2P', monospace";
+  context.fillText(pseudo.slice(0, 18), 236, 218);
+  context.fillStyle = "#39ff88";
+  context.font = "18px 'Press Start 2P', monospace";
+  context.fillText((user.title || "Nouveau joueur").slice(0, 28), 238, 260);
+  context.fillStyle = "#ffdc5e";
+  context.fillText(`NIVEAU ${safeStat(wallet.level, 1)}  /  ${safeStat(wallet.points)} COINS`, 238, 304);
+
+  const cards = [
+    ["XP", safeStat(wallet.xp)],
+    ["STREAK", safeStat(wallet.streak)],
+    ["MESSAGES", safeStat(stats.messages_count)],
+    ["PARTIES", safeStat(stats.games_count)],
+    ["SUCCES", `${safeStat(stats.achievements_unlocked)}/${safeStat(stats.achievements_total)}`],
+    ["INVENTAIRE", safeStat(stats.inventory_count)],
+    ["BEST", safeStat(stats.best_score)],
+    ["JEU", statLabel(stats.best_game).toUpperCase().slice(0, 10)]
+  ];
+
+  cards.forEach(([label, value], index) => {
+    const col = index % 4;
+    const row = Math.floor(index / 4);
+    const x = 70 + col * 225;
+    const y = 380 + row * 126;
+    context.fillStyle = "#1c1c28";
+    context.fillRect(x, y, 194, 92);
+    context.strokeStyle = "#050506";
+    context.lineWidth = 5;
+    context.strokeRect(x, y, 194, 92);
+    context.fillStyle = "#ffdc5e";
+    context.font = "13px 'Press Start 2P', monospace";
+    context.fillText(label, x + 16, y + 32);
+    context.fillStyle = "#f8f8f2";
+    context.font = "22px 'Press Start 2P', monospace";
+    context.fillText(String(value).slice(0, 11), x + 16, y + 70);
+  });
+
+  context.fillStyle = "#050506";
+  context.fillRect(70, 660, width - 140, 68);
+  context.fillStyle = "#39ff88";
+  context.font = "16px 'Press Start 2P', monospace";
+  context.fillText(`TOTAL REWARDS: ${safeStat(stats.total_rewards)} RIP COINS`, 92, 704);
+  context.fillStyle = "#c6c6d6";
+  context.font = "12px 'Press Start 2P', monospace";
+  context.fillText(`rip-tuff.gg / ${new Date().toLocaleDateString("fr-FR")}`, 646, 704);
+}
+
+function shareText(user, statsData) {
+  const data = statsData || profileStatsFallback(user);
+  const stats = data.stats || {};
+  const wallet = data.wallet || {};
+
+  return [
+    `RIP #TUFF - ${user.pseudo || "Player"}`,
+    `Niveau ${safeStat(wallet.level, 1)} / ${safeStat(wallet.points)} coins / ${safeStat(wallet.xp)} XP`,
+    `Best score: ${safeStat(stats.best_score)} sur ${statLabel(stats.best_game)}`,
+    `Succes: ${safeStat(stats.achievements_unlocked)}/${safeStat(stats.achievements_total)} / Inventaire: ${safeStat(stats.inventory_count)}`,
+    `Messages: ${safeStat(stats.messages_count)} / Parties: ${safeStat(stats.games_count)} / Rewards: ${safeStat(stats.total_rewards)}`
+  ].join("\n");
+}
+
+async function bindProfileShareCard(user) {
+  const panel = document.querySelector("[data-profile-share]");
+  const canvas = document.querySelector("[data-share-card-canvas]");
+  const downloadButton = document.querySelector("[data-share-download]");
+  const copyButton = document.querySelector("[data-share-copy]");
+  const status = document.querySelector("[data-share-status]");
+
+  if (!panel || !canvas || !downloadButton || !user) {
+    return;
+  }
+
+  let statsData = profileStatsFallback(user);
+
+  try {
+    if (window.RipData && typeof window.RipData.getProfileCardStats === "function") {
+      statsData = await window.RipData.getProfileCardStats();
+    }
+  } catch (error) {
+    console.error("Stats carte profil:", error);
+    if (status) {
+      status.textContent = "Stats partielles : verifie supabase-chat.sql.";
+      status.dataset.state = "error";
+    }
+  }
+
+  renderShareStats(statsData);
+  drawPixelCard(canvas, user, statsData);
+
+  downloadButton.addEventListener("click", () => {
+    drawPixelCard(canvas, user, statsData);
+    const link = document.createElement("a");
+    const cleanPseudo = String(user.pseudo || "player").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+    link.download = `rip-tuff-card-${cleanPseudo}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+
+  if (copyButton) {
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(shareText(user, statsData));
+        if (status) {
+          status.textContent = "Stats copiees.";
+          status.dataset.state = "ok";
+        }
+      } catch (error) {
+        console.error("Copie stats profil:", error);
+        if (status) {
+          status.textContent = "Copie impossible dans ce navigateur.";
+          status.dataset.state = "error";
+        }
+      }
+    });
+  }
+
+  if (status && !status.textContent) {
+    status.textContent = "Carte prete.";
+    status.dataset.state = "ok";
   }
 }
 
@@ -686,7 +870,6 @@ onReady(async () => {
   normalizeNavigation();
   markCurrentNavigation();
   bindNavigationMenu();
-  bindSupabaseConfigPage();
   bindBugForm();
   await updateAuthVisibility();
   bindSignupForm();

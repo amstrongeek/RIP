@@ -415,6 +415,48 @@
     };
   }
 
+  async function getProfileCardStats() {
+    const client = await getClient();
+    const { data: rpcData, error: rpcError } = await client.rpc("get_my_profile_card_stats");
+
+    if (!rpcError) {
+      return rpcData || {};
+    }
+
+    const user = await getCurrentAuthUser();
+    if (!user) {
+      throw rpcError;
+    }
+
+    const [profile, wallet, messages, scores, shop, achievements] = await Promise.all([
+      getUserProfile(user.id),
+      getWallet(),
+      getUserMessageStats(user.id),
+      getRecentScores(user.id, 24),
+      getShopData(),
+      getAchievements()
+    ]);
+    const best = (scores || []).reduce((winner, score) => {
+      return Number(score.score || 0) > Number(winner.score || 0) ? score : winner;
+    }, { game_key: "--", score: 0 });
+
+    return {
+      profile,
+      wallet,
+      stats: {
+        messages_count: messages.messageCount || 0,
+        games_count: (scores || []).length,
+        inventory_count: shop.inventory.length,
+        achievements_unlocked: achievements.filter((achievement) => achievement.unlocked).length,
+        achievements_total: achievements.length,
+        best_score: Number(best.score || 0),
+        best_game: best.game_key || "--",
+        total_rewards: (scores || []).reduce((total, score) => total + Number(score.reward_points || 0), 0)
+      },
+      recent_scores: scores || []
+    };
+  }
+
   async function getDashboardData(userId) {
     const [wallet, missions, scores, shop, messageCount, achievements, notifications] = await Promise.all([
       getWallet(),
@@ -447,6 +489,7 @@
     getLeaderboard,
     getLatestGameReward,
     getMessageStats,
+    getProfileCardStats,
     getUserMessageStats,
     getMissions,
     getNotifications,
