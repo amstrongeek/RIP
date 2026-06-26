@@ -309,8 +309,11 @@ function bindNavigationMenu() {
     nav.addEventListener("click", (event) => {
       const link = event.target.closest("a");
       if (link) {
-        close();
+        window.setTimeout(close, 0);
+        return;
       }
+
+      event.stopPropagation();
     });
 
     document.addEventListener("click", () => {
@@ -767,6 +770,9 @@ async function bindProfileShareCard(user) {
   }
 
   renderShareStats(statsData);
+  if (document.fonts && document.fonts.ready) {
+    await document.fonts.ready.catch(() => null);
+  }
   drawPixelCard(canvas, user, statsData);
 
   downloadButton.addEventListener("click", () => {
