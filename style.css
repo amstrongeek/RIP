@@ -118,6 +118,50 @@ code {
   font-size: 0.62rem;
 }
 
+.config-list {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 18px;
+}
+
+.config-list div {
+  display: grid;
+  gap: 6px;
+}
+
+.config-list dt {
+  color: var(--accent-2);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.config-list dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.config-list code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.config-code {
+  max-width: 100%;
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border: 3px solid var(--black);
+  background: var(--black);
+  box-shadow: 4px 4px 0 var(--black);
+  white-space: pre-wrap;
+}
+
+.config-code code {
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

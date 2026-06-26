@@ -230,6 +230,12 @@ function renderWallet(wallet) {
 }
 
 async function loadWallet() {
+  if (window.RipData) {
+    const wallet = await window.RipData.getWallet();
+    renderWallet(wallet);
+    return wallet;
+  }
+
   const { data, error } = await arcadeClient.rpc("get_my_wallet");
 
   if (error) {
@@ -245,23 +251,35 @@ async function loadShop() {
     return;
   }
 
-  const [{ data: items, error: itemError }, { data: inventory, error: inventoryError }] = await Promise.all([
-    arcadeClient
-      .from("shop_items")
-      .select("item_key,name,description,price,item_type,payload,sort_order,rarity,category,equip_slot")
-      .order("sort_order", { ascending: true }),
-    arcadeClient
-      .from("user_inventory")
-      .select("item_key,quantity,equipped,acquired_at")
-      .order("acquired_at", { ascending: false })
-  ]);
+  const shop = window.RipData
+    ? await window.RipData.getShopData()
+    : null;
+  const items = shop ? shop.items : null;
+  const inventory = shop ? shop.inventory : null;
 
-  if (itemError || inventoryError) {
-    throw itemError || inventoryError;
+  if (!shop) {
+    const [{ data: fallbackItems, error: itemError }, { data: fallbackInventory, error: inventoryError }] = await Promise.all([
+      arcadeClient
+        .from("shop_items")
+        .select("item_key,name,description,price,item_type,payload,sort_order,rarity,category,equip_slot")
+        .order("sort_order", { ascending: true }),
+      arcadeClient
+        .from("user_inventory")
+        .select("item_key,quantity,equipped,acquired_at")
+        .order("acquired_at", { ascending: false })
+    ]);
+
+    if (itemError || inventoryError) {
+      throw itemError || inventoryError;
+    }
+
+    lastShopItems = fallbackItems || [];
+    lastInventory = fallbackInventory || [];
+  } else {
+    lastShopItems = items || [];
+    lastInventory = inventory || [];
   }
 
-  lastShopItems = items || [];
-  lastInventory = inventory || [];
   syncEquippedItems(lastShopItems, lastInventory);
   ensureShopFilters();
   renderShop(lastShopItems, lastInventory);
@@ -606,13 +624,9 @@ async function refreshAuthProfile() {
 async function purchaseItem(itemKey) {
   try {
     setArcadeStatus("Achat en cours...");
-    const { data, error } = await arcadeClient.rpc("purchase_shop_item", {
-      shop_key: itemKey
-    });
-
-    if (error) {
-      throw error;
-    }
+    const data = window.RipData
+      ? await window.RipData.purchaseShopItem(itemKey)
+      : (await arcadeClient.rpc("purchase_shop_item", { shop_key: itemKey })).data;
 
     renderWallet(data);
     await Promise.all([loadShop(), loadMissions()]);
@@ -626,13 +640,9 @@ async function purchaseItem(itemKey) {
 async function equipItem(itemKey) {
   try {
     setArcadeStatus("Equipement en cours...");
-    const { data, error } = await arcadeClient.rpc("equip_shop_item", {
-      shop_key: itemKey
-    });
-
-    if (error) {
-      throw error;
-    }
+    const data = window.RipData
+      ? await window.RipData.equipShopItem(itemKey)
+      : (await arcadeClient.rpc("equip_shop_item", { shop_key: itemKey })).data;
 
     applyProfileCosmetics(data);
     await refreshAuthProfile();
@@ -653,11 +663,9 @@ async function claimDaily() {
   try {
     dailyButton.disabled = true;
     setArcadeStatus("Claim daily...");
-    const { data, error } = await arcadeClient.rpc("claim_daily_reward");
-
-    if (error) {
-      throw error;
-    }
+    const data = window.RipData
+      ? await window.RipData.claimDailyReward()
+      : (await arcadeClient.rpc("claim_daily_reward")).data;
 
     renderWallet(data);
     await loadMissions();
@@ -675,11 +683,9 @@ async function loadMissions() {
     return;
   }
 
-  const { data, error } = await arcadeClient.rpc("get_my_missions");
-
-  if (error) {
-    throw error;
-  }
+  const data = window.RipData
+    ? await window.RipData.getMissions()
+    : (await arcadeClient.rpc("get_my_missions")).data;
 
   renderMissions(data || []);
 }
@@ -724,13 +730,9 @@ function renderMissions(missions) {
 async function claimMission(missionKey) {
   try {
     setArcadeStatus("Claim mission...");
-    const { data, error } = await arcadeClient.rpc("claim_mission", {
-      mission_key_input: missionKey
-    });
-
-    if (error) {
-      throw error;
-    }
+    const data = window.RipData
+      ? await window.RipData.claimMission(missionKey)
+      : (await arcadeClient.rpc("claim_mission", { mission_key_input: missionKey })).data;
 
     renderWallet(data);
     await loadMissions();
@@ -746,29 +748,9 @@ async function loadLeaderboard(gameKey = "reflex") {
     return;
   }
 
-  const { data, error } = await arcadeClient
-    .from("game_scores")
-    .select("user_id,game_key,score,reward_points,created_at")
-    .eq("game_key", gameKey)
-    .order("score", { ascending: false })
-    .limit(8);
-
-  if (error) {
-    throw error;
-  }
-
-  const userIds = [...new Set((data || []).map((score) => score.user_id))];
-  let profiles = [];
-
-  if (userIds.length) {
-    const profileResult = await arcadeClient
-      .from("profiles")
-      .select("id,pseudo")
-      .in("id", userIds);
-    profiles = profileResult.data || [];
-  }
-
-  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const data = window.RipData
+    ? await window.RipData.getLeaderboard(gameKey, 8)
+    : [];
   leaderboardList.replaceChildren();
 
   if (!data || !data.length) {
@@ -777,7 +759,7 @@ async function loadLeaderboard(gameKey = "reflex") {
   }
 
   data.forEach((score, index) => {
-    const profile = profileById.get(score.user_id);
+    const profile = score.profile;
     const row = createElement("div", "leaderboard-item");
     row.append(
       createElement("strong", "", `${index + 1}. ${profile ? profile.pseudo : "Player"}`),
@@ -793,23 +775,15 @@ async function awardSoloGame(gameKey, score) {
   }
 
   try {
-    const { data, error } = await arcadeClient.rpc("complete_solo_game", {
-      game_key_input: gameKey,
-      score_input: Math.max(0, Math.round(score))
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    const { data: scoreRow } = await arcadeClient
-      .from("game_scores")
-      .select("reward_points")
-      .eq("user_id", arcadeUser.id)
-      .eq("game_key", gameKey)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const data = window.RipData
+      ? await window.RipData.saveGameResult(gameKey, score)
+      : (await arcadeClient.rpc("complete_solo_game", {
+          game_key_input: gameKey,
+          score_input: Math.max(0, Math.round(score))
+        })).data;
+    const scoreRow = window.RipData
+      ? await window.RipData.getLatestGameReward(arcadeUser.id, gameKey)
+      : null;
 
     const rewardPoints = scoreRow ? Number(scoreRow.reward_points || 0) : 0;
     renderWallet(data);

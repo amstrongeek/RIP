@@ -85,6 +85,10 @@ export async function getPlatformHealth(client) {
 }
 
 export async function getWallet(client) {
+  if (window.RipData) {
+    return window.RipData.getWallet();
+  }
+
   const { data, error } = await client.rpc("get_my_wallet");
 
   if (error) {
@@ -95,6 +99,10 @@ export async function getWallet(client) {
 }
 
 export async function getMissions(client) {
+  if (window.RipData) {
+    return window.RipData.getMissions();
+  }
+
   const { data, error } = await client.rpc("get_my_missions");
 
   if (error) {
@@ -105,6 +113,10 @@ export async function getMissions(client) {
 }
 
 export async function getShop(client) {
+  if (window.RipData) {
+    return window.RipData.getShopData();
+  }
+
   const [itemsResult, inventoryResult] = await Promise.all([
     client
       .from("shop_items")
@@ -127,6 +139,10 @@ export async function getShop(client) {
 }
 
 export async function getRecentScores(client, userId, limit = 6) {
+  if (window.RipData) {
+    return window.RipData.getRecentScores(userId, limit);
+  }
+
   const { data, error } = await client
     .from("game_scores")
     .select("game_key,score,reward_points,created_at")
@@ -143,6 +159,10 @@ export async function getRecentScores(client, userId, limit = 6) {
 
 
 export async function getAchievements(client) {
+  if (window.RipData) {
+    return window.RipData.getAchievements();
+  }
+
   const { data, error } = await client.rpc("get_my_achievements");
 
   if (error) {
@@ -153,6 +173,10 @@ export async function getAchievements(client) {
 }
 
 export async function claimAchievement(client, achievementKey) {
+  if (window.RipData) {
+    return window.RipData.claimAchievement(achievementKey);
+  }
+
   const { data, error } = await client.rpc("claim_achievement", {
     achievement_key_input: achievementKey
   });
@@ -165,6 +189,10 @@ export async function claimAchievement(client, achievementKey) {
 }
 
 export async function getNotifications(client, limit = 20) {
+  if (window.RipData) {
+    return window.RipData.getNotifications(limit);
+  }
+
   const { data, error } = await client.rpc("get_my_notifications", {
     limit_count: limit
   });
@@ -177,6 +205,10 @@ export async function getNotifications(client, limit = 20) {
 }
 
 export async function markNotificationRead(client, notificationId) {
+  if (window.RipData) {
+    return window.RipData.markNotificationRead(notificationId);
+  }
+
   const { data, error } = await client.rpc("mark_notification_read", {
     notification_id: notificationId
   });
@@ -188,6 +220,10 @@ export async function markNotificationRead(client, notificationId) {
   return data;
 }
 export async function getLeaderboard(client, gameKey = "reflex", limit = 10) {
+  if (window.RipData) {
+    return window.RipData.getLeaderboard(gameKey, limit);
+  }
+
   const { data, error } = await client
     .from("game_scores")
     .select("user_id,game_key,score,reward_points,created_at")
@@ -219,6 +255,10 @@ export async function getLeaderboard(client, gameKey = "reflex", limit = 10) {
 }
 
 export async function getMessageStats(client, userId) {
+  if (window.RipData) {
+    return window.RipData.getMessageStats(userId);
+  }
+
   const { count, error } = await client
     .from("chat_messages")
     .select("id", { count: "exact", head: true })

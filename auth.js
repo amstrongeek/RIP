@@ -135,6 +135,10 @@
       return null;
     }
 
+    if (window.RipData && typeof window.RipData.getUserProfile === "function") {
+      return window.RipData.getUserProfile(authUser.id);
+    }
+
     const response = await supabase
       .from("profiles")
       .select(PROFILE_SELECT)
@@ -382,16 +386,30 @@
       throw authError("invalid-login", userError);
     }
 
-    const { data, error } = await supabase.rpc("update_my_profile", {
-      pseudo_input: profile.pseudo,
-      status_input: profile.status,
-      bio_input: profile.bio,
-      website_input: profile.website,
-      avatar_url_input: profile.avatarUrl || ""
-    });
+    let data = null;
 
-    if (error) {
+    try {
+      data = window.RipData && typeof window.RipData.updateUserProfile === "function"
+        ? await window.RipData.updateUserProfile(profile)
+        : null;
+    } catch (error) {
       throw authError("profile-update-failed", error);
+    }
+
+    if (!data) {
+      const response = await supabase.rpc("update_my_profile", {
+        pseudo_input: profile.pseudo,
+        status_input: profile.status,
+        bio_input: profile.bio,
+        website_input: profile.website,
+        avatar_url_input: profile.avatarUrl || ""
+      });
+
+      if (response.error) {
+        throw authError("profile-update-failed", response.error);
+      }
+
+      data = response.data;
     }
 
     await supabase.auth.updateUser({
@@ -455,6 +473,10 @@
         messageCount: 0,
         lastMessageAt: null
       };
+    }
+
+    if (window.RipData && typeof window.RipData.getUserMessageStats === "function") {
+      return window.RipData.getUserMessageStats(user.id);
     }
 
     const supabase = await getSupabase();

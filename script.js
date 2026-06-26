@@ -223,9 +223,9 @@ async function updateAuthVisibility() {
 
   if (user && window.RipSupabase && window.RipSupabase.isConfigured()) {
     try {
-      const client = await window.RipSupabase.getClient();
-      const { data } = await client.rpc("is_admin");
-      isAdmin = Boolean(data);
+      isAdmin = window.RipData && typeof window.RipData.isAdmin === "function"
+        ? await window.RipData.isAdmin()
+        : false;
     } catch (error) {
       isAdmin = false;
     }
@@ -240,6 +240,51 @@ async function updateAuthVisibility() {
       return;
     }
     element.hidden = (rule === "guest" && user) || (rule === "user" && !user);
+  });
+}
+
+const MAIN_NAV_ITEMS = [
+  { href: "index.html", label: "Accueil" },
+  { href: "chat.html", label: "Tchat" },
+  { href: "dashboard.html", label: "Dashboard" },
+  { href: "arcade.html", label: "Arcade" },
+  { href: "boutique.html", label: "Boutique" },
+  { href: "classements.html", label: "Classements" },
+  { href: "succes.html", label: "Succes" },
+  { href: "notifications.html", label: "Notifs" },
+  { href: "supabase-config.html", label: "Config Supabase" },
+  { href: "https://discord.gg/9j5Nxuk2sH", label: "Discord", external: true },
+  { href: "connexion.html", label: "Connexion", auth: "guest" },
+  { href: "inscription.html", label: "Inscription", auth: "guest" },
+  { href: "compte.html", label: "Profil", auth: "user" },
+  { href: "admin.html", label: "Admin", auth: "admin", hidden: true }
+];
+
+function normalizeNavigation() {
+  document.querySelectorAll("[data-main-nav]").forEach((nav) => {
+    nav.replaceChildren();
+    nav.dataset.open = "false";
+
+    MAIN_NAV_ITEMS.forEach((item) => {
+      const link = document.createElement("a");
+      link.href = item.href;
+      link.textContent = item.label;
+
+      if (item.external) {
+        link.target = "_blank";
+        link.rel = "noreferrer";
+      }
+
+      if (item.auth) {
+        link.dataset.authVisible = item.auth;
+      }
+
+      if (item.hidden) {
+        link.hidden = true;
+      }
+
+      nav.append(link);
+    });
   });
 }
 
@@ -290,9 +335,81 @@ function bindNavigationMenu() {
 function markCurrentNavigation() {
   const current = location.pathname.split("/").pop() || "index.html";
   document.querySelectorAll("[data-main-nav] a[href]").forEach((link) => {
-    if (link.getAttribute("href") === current) {
+    const href = link.getAttribute("href");
+    if (href === current) {
       link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
     }
+  });
+}
+
+function bindSupabaseConfigPage() {
+  const page = document.querySelector("[data-supabase-config-page]");
+
+  if (!page) {
+    return;
+  }
+
+  const config = window.RipSupabase ? window.RipSupabase.getConfig() : { url: "", anonKey: "" };
+  const tableNames = [
+    "profiles",
+    "chat_rooms",
+    "room_members",
+    "chat_messages",
+    "message_reactions",
+    "message_reports",
+    "friend_requests",
+    "user_wallets",
+    "point_ledger",
+    "shop_items",
+    "user_inventory",
+    "game_scores",
+    "game_duels",
+    "tic_tac_toe_games",
+    "user_missions",
+    "user_achievements",
+    "user_notifications",
+    "game_settings",
+    "admin_roles",
+    "admin_logs",
+    "bug_reports"
+  ];
+  const snippet = `window.RIP_SUPABASE = {
+  url: "${config.url || "https://TON-PROJET.supabase.co"}",
+  // Cle publique anon/publishable uniquement. Jamais service_role ou sb_secret.
+  anonKey: "${config.anonKey || "TON_ANON_KEY"}"
+};`;
+
+  document.querySelectorAll("[data-config-url]").forEach((element) => {
+    element.textContent = config.url || "Non configure";
+  });
+
+  document.querySelectorAll("[data-config-key]").forEach((element) => {
+    element.textContent = config.anonKey || "Non configure";
+  });
+
+  document.querySelectorAll("[data-config-tables]").forEach((element) => {
+    element.textContent = tableNames.join(", ");
+  });
+
+  document.querySelectorAll("[data-config-code]").forEach((element) => {
+    element.textContent = snippet;
+  });
+
+  document.querySelectorAll("[data-copy-config]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(snippet);
+        button.textContent = "Copie";
+        window.setTimeout(() => {
+          button.textContent = "Copier";
+        }, 1800);
+      } catch (error) {
+        console.error("Copie config:", error);
+        button.textContent = "Copie impossible";
+      }
+    });
   });
 }
 
@@ -319,17 +436,12 @@ function bindBugForm() {
     setMessage(message, "Envoi du signalement...", null);
 
     try {
-      const client = await window.RipSupabase.getClient();
-      const { error } = await client.rpc("submit_bug_report", {
-        title_input: String(data.title || ""),
-        body_input: String(data.body || ""),
-        page_url_input: window.location.href,
-        user_agent_input: navigator.userAgent
+      await window.RipData.submitBugReport({
+        title: data.title,
+        body: data.body,
+        pageUrl: window.location.href,
+        userAgent: navigator.userAgent
       });
-
-      if (error) {
-        throw error;
-      }
 
       form.reset();
       setMessage(message, "Bug envoye. Merci.", "success");
@@ -571,8 +683,10 @@ onReady(async () => {
 
   document.addEventListener("rip-auth-change", updateAuthVisibility);
 
+  normalizeNavigation();
   markCurrentNavigation();
   bindNavigationMenu();
+  bindSupabaseConfigPage();
   bindBugForm();
   await updateAuthVisibility();
   bindSignupForm();
