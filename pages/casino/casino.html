@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Casino RIP TUFF : blackjack multijoueur et defi de cartes securises par Supabase.">
+  <title>RIP #TUFF | Casino</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="casino.css?v=20260628-casino2">
+</head>
+<body class="casino-body" data-platform-page="casino">
+  <header class="site-header">
+    <a class="brand-logo" href="../home/home.html">
+      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
+      <span>RIP #TUFF</span>
+    </a>
+    <div class="header-actions">
+      <a class="header-login" href="../login/login.html" data-auth-visible="guest">Connexion</a>
+      <a class="account-chip" href="../account/account-profile.html" data-header-account data-auth-visible="user" hidden>
+        <span class="account-chip-avatar" data-header-avatar>?</span>
+        <span class="account-chip-name" data-header-name>Compte</span>
+      </a>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">
+        <span class="sr-only">Menu</span>
+      </button>
+    </div>
+    <nav class="nav" data-main-nav aria-label="Navigation principale">
+      <a href="../home/home.html">Accueil</a>
+      <a href="../chat/chat.html">Tchat</a>
+      <a href="../dashboard/dashboard.html">Dashboard</a>
+      <a href="../arcade/arcade.html">Arcade</a>
+      <a href="../casino/casino.html" aria-current="page">Casino</a>
+      <a href="../shop/shop.html">Boutique</a>
+      <a href="../leaderboards/leaderboards.html">Classements</a>
+      <a href="../achievements/achievements.html">Succes</a>
+    </nav>
+  </header>
+
+  <main class="casino-page">
+    <section class="casino-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">RIP Casino</p>
+        <h1>La table est ouverte.</h1>
+        <p>Des cartes reelles, un paquet sans remise et des mises validees par le serveur.</p>
+      </div>
+      <div class="wallet-console" aria-live="polite">
+        <span>Solde</span>
+        <strong data-wallet-points>0</strong>
+        <small>RIP coins</small>
+      </div>
+    </section>
+
+    <div class="casino-status" data-casino-status data-state="loading" role="status">Connexion a la table...</div>
+
+    <section class="auth-gate" data-auth-gate hidden>
+      <strong>Compte requis</strong>
+      <p>Connecte-toi pour miser tes RIP coins et rejoindre une table.</p>
+      <a class="button primary" href="../login/login.html">Se connecter</a>
+    </section>
+
+    <section class="casino-console" data-casino-console hidden>
+      <div class="game-tabs" role="tablist" aria-label="Jeux du casino">
+        <button type="button" role="tab" aria-selected="true" data-casino-tab="blackjack">Blackjack</button>
+        <button type="button" role="tab" aria-selected="false" data-casino-tab="ladder">RIP x20</button>
+      </div>
+
+      <section class="game-workspace" data-game-panel="blackjack">
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">1 a 4 joueurs</p>
+            <h2>Blackjack prive</h2>
+          </div>
+          <div class="rule-strip" aria-label="Regles principales">
+            <span>Mise min. 10</span>
+            <span>Victoire x2</span>
+            <span>Blackjack x2.5</span>
+            <span>Croupier reste a 17</span>
+          </div>
+        </header>
+
+        <div class="blackjack-entry" data-blackjack-entry>
+          <button class="button primary large" type="button" data-blackjack-create>Creer une table</button>
+          <span class="entry-separator">ou</span>
+          <form class="join-form" data-blackjack-join-form>
+            <label for="blackjack-code">Code prive</label>
+            <div class="input-action">
+              <input id="blackjack-code" name="code" inputmode="text" maxlength="6" autocomplete="off" placeholder="ABC123" required>
+              <button class="button secondary" type="submit">Rejoindre</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="blackjack-table" data-blackjack-table hidden>
+          <div class="table-toolbar">
+            <div>
+              <span class="table-label">Table</span>
+              <strong data-blackjack-code>------</strong>
+            </div>
+            <button class="icon-command" type="button" data-blackjack-copy aria-label="Copier le code de la table" title="Copier le code">Copier</button>
+            <span class="table-phase" data-blackjack-phase>Salon</span>
+          </div>
+
+          <div class="dealer-zone">
+            <div class="dealer-title">
+              <span>Croupier</span>
+              <strong data-dealer-total>--</strong>
+            </div>
+            <div class="playing-cards" data-dealer-cards aria-label="Cartes du croupier"></div>
+          </div>
+
+          <div class="player-seats" data-blackjack-players></div>
+
+          <div class="blackjack-controls" data-blackjack-controls>
+            <form class="bet-form" data-blackjack-bet-form>
+              <label for="blackjack-bet">Ta mise</label>
+              <div class="input-action">
+                <input id="blackjack-bet" name="bet" type="number" inputmode="numeric" min="10" step="1" value="10" required>
+                <button class="button primary" type="submit">Miser</button>
+              </div>
+            </form>
+            <div class="action-row" data-blackjack-actions></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-workspace" data-game-panel="ladder" hidden>
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">Quatre tirages</p>
+            <h2>RIP x20</h2>
+          </div>
+          <div class="rule-strip" aria-label="Multiplicateurs">
+            <span>Rouge / Noir x2</span>
+            <span>Plus / Moins x3</span>
+            <span>Dedans / Dehors x4</span>
+            <span>Couleur x20</span>
+          </div>
+        </header>
+
+        <div class="ladder-start" data-ladder-entry>
+          <form class="wager-form" data-ladder-start-form>
+            <label for="ladder-wager">Mise de depart</label>
+            <div class="input-action">
+              <input id="ladder-wager" name="wager" type="number" inputmode="numeric" min="10" step="1" value="10" required>
+              <button class="button primary" type="submit">Lancer le tirage</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="ladder-table" data-ladder-table hidden>
+          <div class="ladder-progress" data-ladder-progress></div>
+          <div class="ladder-pot">
+            <span>Valeur actuelle</span>
+            <strong data-ladder-value>0</strong>
+            <small data-ladder-multiplier>x1</small>
+          </div>
+          <div class="ladder-cards playing-cards" data-ladder-cards aria-label="Cartes tirees"></div>
+          <div class="ladder-question" data-ladder-question></div>
+          <div class="ladder-actions" data-ladder-actions></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="fairness-band">
+      <div>
+        <span class="fairness-mark" aria-hidden="true">52</span>
+        <div>
+          <strong>Paquet serveur</strong>
+          <p>Chaque partie melange 52 cartes uniques. Une carte tiree ne revient pas dans le paquet.</p>
+        </div>
+      </div>
+      <div>
+        <span class="fairness-mark" aria-hidden="true">SQL</span>
+        <div>
+          <strong>Mises atomiques</strong>
+          <p>Le navigateur ne choisit ni les cartes ni le gain. Supabase debite et paie en transaction.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>RIP Casino</span>
+    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  </footer>
+
+  <div class="toast-stack" data-toast-stack aria-live="polite"></div>
+
+  <script src="../../shared/supabase/public-config.js?v=20260628-casino2"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260628-casino2"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260628-casino2"></script>
+  <script type="module" src="casino-page.js?v=20260628-casino2"></script>
+</body>
+</html>

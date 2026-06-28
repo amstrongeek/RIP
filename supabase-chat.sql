@@ -2796,6 +2796,175 @@ revoke all on function public.get_platform_health() from public, anon, authentic
 grant execute on function public.submit_bug_report(text, text, text, text) to anon, authenticated;
 grant execute on function public.get_platform_health() to anon, authenticated;
 
+-- RIP #TUFF v7 : casino serveur, mises atomiques et paquets sans remise.
+-- Les colonnes du wallet passent en bigint pour ne pas imposer de plafond applicatif aux mises.
+alter table public.user_wallets alter column points type bigint using points::bigint;
+alter table public.user_wallets alter column total_points type bigint using total_points::bigint;
+alter table public.point_ledger alter column amount type bigint using amount::bigint;
+
+create table if not exists public.casino_blackjack_games (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)),
+  host_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'waiting' check (status in ('waiting', 'playing', 'done', 'cancelled')),
+  dealer_cards text[] not null default '{}'::text[],
+  deck text[] not null default '{}'::text[],
+  deck_position integer not null default 0 check (deck_position between 0 and 52),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  finished_at timestamptz
+);
+
+create table if not exists public.casino_blackjack_players (
+  game_id uuid not null references public.casino_blackjack_games(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  seat smallint not null check (seat between 1 and 4),
+  bet bigint not null default 0 check (bet >= 0),
+  cards text[] not null default '{}'::text[],
+  hand_state text not null default 'waiting' check (hand_state in ('waiting', 'playing', 'stood', 'blackjack', 'busted', 'done')),
+  result text not null default '' check (result in ('', 'blackjack', 'win', 'push', 'lose', 'bust', 'forfeit')),
+  payout bigint not null default 0 check (payout >= 0),
+  joined_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (game_id, user_id),
+  unique (game_id, seat)
+);
+
+create table if not exists public.casino_ladder_games (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  wager bigint not null check (wager >= 10),
+  status text not null default 'playing' check (status in ('playing', 'won', 'lost', 'cashed_out')),
+  round_no smallint not null default 1 check (round_no between 1 and 4),
+  current_multiplier integer not null default 1 check (current_multiplier in (1, 2, 3, 4, 20)),
+  deck text[] not null,
+  draw_position integer not null default 0 check (draw_position between 0 and 52),
+  revealed_cards text[] not null default '{}'::text[],
+  last_guess text not null default '',
+  last_result text not null default '',
+  payout bigint not null default 0 check (payout >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  finished_at timestamptz
+);
+
+alter table public.casino_blackjack_games enable row level security;
+alter table public.casino_blackjack_players enable row level security;
+alter table public.casino_ladder_games enable row level security;
+
+create index if not exists casino_blackjack_games_code_idx on public.casino_blackjack_games (code);
+create index if not exists casino_blackjack_games_status_idx on public.casino_blackjack_games (status, updated_at desc);
+create index if not exists casino_blackjack_players_user_idx on public.casino_blackjack_players (user_id, updated_at desc);
+create index if not exists casino_ladder_games_user_idx on public.casino_ladder_games (user_id, created_at desc);
+
+revoke all on public.casino_blackjack_games from anon, authenticated;
+revoke all on public.casino_blackjack_players from anon, authenticated;
+revoke all on public.casino_ladder_games from anon, authenticated;
+
+create or replace function public.casino_new_deck()
+returns text[]
+language sql
+volatile
+set search_path = public
+as $$
+  select array_agg(rank_code || suit_code order by gen_random_uuid())
+  from unnest(array['A','2','3','4','5','6','7','8','9','10','J','Q','K']::text[]) as ranks(rank_code)
+  cross join unnest(array['H','D','C','S']::text[]) as suits(suit_code);
+$$;
+
+create or replace function public.casino_card_rank_value(card_code text)
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select case left(coalesce(card_code, ''), greatest(length(coalesce(card_code, '')) - 1, 0))
+    when 'A' then 14
+    when 'K' then 13
+    when 'Q' then 12
+    when 'J' then 11
+    else coalesce(nullif(left(coalesce(card_code, ''), greatest(length(coalesce(card_code, '')) - 1, 0)), '')::integer, 0)
+  end;
+$$;
+
+create or replace function public.casino_hand_total(cards_input text[])
+returns integer
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  card_code text;
+  rank_code text;
+  total integer := 0;
+  aces integer := 0;
+begin
+  foreach card_code in array coalesce(cards_input, '{}'::text[]) loop
+    rank_code := left(card_code, length(card_code) - 1);
+
+    if rank_code = 'A' then
+      total := total + 11;
+      aces := aces + 1;
+    elsif rank_code in ('K', 'Q', 'J') then
+      total := total + 10;
+    else
+      total := total + coalesce(nullif(rank_code, '')::integer, 0);
+    end if;
+  end loop;
+
+  while total > 21 and aces > 0 loop
+    total := total - 10;
+    aces := aces - 1;
+  end loop;
+
+  return total;
+end;
+$$;
+
+create or replace function public.casino_wallet_delta(
+  target_user uuid,
+  point_delta bigint,
+  reason_text text,
+  ref_text text
+)
+returns public.user_wallets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  wallet public.user_wallets;
+begin
+  if target_user is null then
+    raise exception 'missing_user';
+  end if;
+
+  perform public.ensure_wallet(target_user);
+
+  select *
+  into wallet
+  from public.user_wallets
+  where user_id = target_user
+  for update;
+
+  if point_delta < 0 and wallet.points < abs(point_delta) then
+    raise exception 'not_enough_points';
+  end if;
+
+  update public.user_wallets
+  set points = points + point_delta,
+      total_points = total_points + greatest(point_delta, 0),
+      updated_at = now()
+  where user_id = target_user
+  returning * into wallet;
+
+  insert into public.point_ledger (user_id, amount, xp_amount, reason, ref_id)
+  values (target_user, point_delta, 0, left(coalesce(reason_text, 'casino'), 80), left(coalesce(ref_text, ''), 120));
+
+  return wallet;
+end;
+$$;
+
 create or replace function public.get_my_profile_card_stats()
 returns jsonb
 language plpgsql
@@ -2893,7 +3062,10 @@ begin
       'user_achievements', to_regclass('public.user_achievements') is not null,
       'user_notifications', to_regclass('public.user_notifications') is not null,
       'bug_reports', to_regclass('public.bug_reports') is not null,
-      'admin_roles', to_regclass('public.admin_roles') is not null
+      'admin_roles', to_regclass('public.admin_roles') is not null,
+      'casino_blackjack_games', to_regclass('public.casino_blackjack_games') is not null,
+      'casino_blackjack_players', to_regclass('public.casino_blackjack_players') is not null,
+      'casino_ladder_games', to_regclass('public.casino_ladder_games') is not null
     ),
     'functions', jsonb_build_object(
       'get_my_wallet', to_regprocedure('public.get_my_wallet()') is not null,
@@ -2906,7 +3078,9 @@ begin
       'update_my_profile', to_regprocedure('public.update_my_profile(text,text,text,text,text)') is not null,
       'get_my_profile_card_stats', to_regprocedure('public.get_my_profile_card_stats()') is not null,
       'submit_bug_report', to_regprocedure('public.submit_bug_report(text,text,text,text)') is not null,
-      'is_admin', to_regprocedure('public.is_admin()') is not null
+      'is_admin', to_regprocedure('public.is_admin()') is not null,
+      'casino_create_blackjack', to_regprocedure('public.casino_create_blackjack()') is not null,
+      'casino_start_ladder', to_regprocedure('public.casino_start_ladder(bigint)') is not null
     ),
     'is_authenticated', auth.uid() is not null,
     'is_admin', public.is_admin()
@@ -2915,6 +3089,988 @@ end;
 $$;
 
 grant execute on function public.get_platform_health() to anon, authenticated;
+
+create or replace function public.casino_get_blackjack_state(game_id_input uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  players_json jsonb;
+  visible_dealer_cards text[];
+  ready_to_start boolean;
+  wallet_points bigint;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+    and exists (
+      select 1
+      from public.casino_blackjack_players member
+      where member.game_id = g.id
+        and member.user_id = auth.uid()
+    );
+
+  if game.id is null then
+    raise exception 'blackjack_game_not_found';
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'user_id', player.user_id,
+      'seat', player.seat,
+      'bet', player.bet,
+      'cards', to_jsonb(player.cards),
+      'total', public.casino_hand_total(player.cards),
+      'hand_state', player.hand_state,
+      'result', player.result,
+      'payout', player.payout,
+      'pseudo', coalesce(profile.pseudo, 'Player'),
+      'avatar_color', coalesce(profile.avatar_color, '#39ff88'),
+      'avatar_url', coalesce(profile.avatar_url, '')
+    ) order by player.seat
+  ), '[]'::jsonb)
+  into players_json
+  from public.casino_blackjack_players player
+  left join public.profiles profile on profile.id = player.user_id
+  where player.game_id = game.id;
+
+  select count(*) between 1 and 4 and bool_and(player.bet >= 10)
+  into ready_to_start
+  from public.casino_blackjack_players player
+  where player.game_id = game.id;
+
+  select wallet.points
+  into wallet_points
+  from public.user_wallets wallet
+  where wallet.user_id = auth.uid();
+
+  visible_dealer_cards := game.dealer_cards;
+  if game.status = 'playing' and coalesce(array_length(visible_dealer_cards, 1), 0) >= 2 then
+    visible_dealer_cards[2] := 'HIDDEN';
+  end if;
+
+  return jsonb_build_object(
+    'id', game.id,
+    'code', game.code,
+    'host_id', game.host_id,
+    'status', game.status,
+    'dealer_cards', to_jsonb(visible_dealer_cards),
+    'dealer_total', case when game.status = 'done' then public.casino_hand_total(game.dealer_cards) else null end,
+    'players', players_json,
+    'player_count', jsonb_array_length(players_json),
+    'can_start', coalesce(ready_to_start, false),
+    'is_host', game.host_id = auth.uid(),
+    'my_user_id', auth.uid(),
+    'wallet_points', coalesce(wallet_points, 0),
+    'updated_at', game.updated_at
+  );
+end;
+$$;
+
+create or replace function public.casino_create_blackjack()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  perform public.ensure_wallet(auth.uid());
+
+  insert into public.casino_blackjack_games (host_id)
+  values (auth.uid())
+  returning * into game;
+
+  insert into public.casino_blackjack_players (game_id, user_id, seat)
+  values (game.id, auth.uid(), 1);
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_join_blackjack(game_code_input text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  free_seat smallint;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.code = upper(trim(coalesce(game_code_input, '')))
+  for update;
+
+  if game.id is null or game.status <> 'waiting' then
+    raise exception 'blackjack_game_not_found';
+  end if;
+
+  if exists (
+    select 1
+    from public.casino_blackjack_players player
+    where player.game_id = game.id
+      and player.user_id = auth.uid()
+  ) then
+    return public.casino_get_blackjack_state(game.id);
+  end if;
+
+  select seat_number::smallint
+  into free_seat
+  from generate_series(1, 4) as seat_number
+  where not exists (
+    select 1
+    from public.casino_blackjack_players player
+    where player.game_id = game.id
+      and player.seat = seat_number
+  )
+  order by seat_number
+  limit 1;
+
+  if free_seat is null then
+    raise exception 'blackjack_table_full';
+  end if;
+
+  perform public.ensure_wallet(auth.uid());
+
+  insert into public.casino_blackjack_players (game_id, user_id, seat)
+  values (game.id, auth.uid(), free_seat);
+
+  update public.casino_blackjack_games
+  set updated_at = now()
+  where id = game.id;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_set_blackjack_bet(game_id_input uuid, bet_input bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  player public.casino_blackjack_players;
+  clean_bet bigint;
+  delta bigint;
+begin
+  clean_bet := coalesce(bet_input, 0);
+  if clean_bet < 10 then
+    raise exception 'casino_minimum_bet';
+  end if;
+
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'waiting' then
+    raise exception 'blackjack_betting_closed';
+  end if;
+
+  select p.*
+  into player
+  from public.casino_blackjack_players p
+  where p.game_id = game.id
+    and p.user_id = auth.uid()
+  for update;
+
+  if player.user_id is null then
+    raise exception 'blackjack_game_not_found';
+  end if;
+
+  delta := clean_bet - player.bet;
+  if delta <> 0 then
+    perform public.casino_wallet_delta(auth.uid(), -delta, 'casino:blackjack:bet', game.id::text);
+  end if;
+
+  update public.casino_blackjack_players
+  set bet = clean_bet,
+      updated_at = now()
+  where game_id = game.id
+    and user_id = auth.uid();
+
+  update public.casino_blackjack_games
+  set updated_at = now()
+  where id = game.id;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_finish_blackjack(game_id_input uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  player public.casino_blackjack_players;
+  final_dealer_cards text[];
+  final_deck_position integer;
+  dealer_total integer;
+  player_total integer;
+  dealer_natural boolean;
+  payout_value bigint;
+  result_value text;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'playing' then
+    return;
+  end if;
+
+  if exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.hand_state = 'playing'
+  ) then
+    return;
+  end if;
+
+  final_dealer_cards := game.dealer_cards;
+  final_deck_position := game.deck_position;
+  dealer_natural := coalesce(array_length(final_dealer_cards, 1), 0) = 2
+    and public.casino_hand_total(final_dealer_cards) = 21;
+
+  if exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.result <> 'forfeit'
+      and p.hand_state <> 'busted'
+  ) then
+    while public.casino_hand_total(final_dealer_cards) < 17 loop
+      final_deck_position := final_deck_position + 1;
+      final_dealer_cards := array_append(final_dealer_cards, game.deck[final_deck_position]);
+    end loop;
+  end if;
+
+  dealer_total := public.casino_hand_total(final_dealer_cards);
+
+  for player in
+    select p.*
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+    order by p.seat
+    for update
+  loop
+    player_total := public.casino_hand_total(player.cards);
+    payout_value := 0;
+
+    if player.result = 'forfeit' then
+      result_value := 'forfeit';
+    elsif player.hand_state = 'busted' or player_total > 21 then
+      result_value := 'bust';
+    elsif coalesce(array_length(player.cards, 1), 0) = 2 and player_total = 21 then
+      if dealer_natural then
+        result_value := 'push';
+        payout_value := player.bet;
+      else
+        result_value := 'blackjack';
+        payout_value := (player.bet * 5) / 2;
+      end if;
+    elsif dealer_natural then
+      result_value := 'lose';
+    elsif dealer_total > 21 or player_total > dealer_total then
+      result_value := 'win';
+      payout_value := player.bet * 2;
+    elsif player_total = dealer_total then
+      result_value := 'push';
+      payout_value := player.bet;
+    else
+      result_value := 'lose';
+    end if;
+
+    if payout_value > 0 then
+      perform public.casino_wallet_delta(
+        player.user_id,
+        payout_value,
+        'casino:blackjack:' || result_value,
+        game.id::text
+      );
+    end if;
+
+    update public.casino_blackjack_players
+    set hand_state = 'done',
+        result = result_value,
+        payout = payout_value,
+        updated_at = now()
+    where game_id = game.id
+      and user_id = player.user_id;
+  end loop;
+
+  update public.casino_blackjack_games
+  set status = 'done',
+      dealer_cards = final_dealer_cards,
+      deck_position = final_deck_position,
+      updated_at = now(),
+      finished_at = now()
+  where id = game.id;
+end;
+$$;
+
+create or replace function public.casino_start_blackjack(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  player public.casino_blackjack_players;
+  shuffled_deck text[];
+  dealt_dealer_cards text[] := '{}'::text[];
+  position integer := 0;
+  player_count integer;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.host_id <> auth.uid() then
+    raise exception 'blackjack_host_required';
+  end if;
+
+  if game.status <> 'waiting' then
+    raise exception 'blackjack_game_started';
+  end if;
+
+  select count(*)
+  into player_count
+  from public.casino_blackjack_players p
+  where p.game_id = game.id;
+
+  if player_count < 1 or player_count > 4 then
+    raise exception 'blackjack_invalid_player_count';
+  end if;
+
+  if exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.bet < 10
+  ) then
+    raise exception 'blackjack_bets_missing';
+  end if;
+
+  shuffled_deck := public.casino_new_deck();
+
+  for player in
+    select p.*
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+    order by p.seat
+  loop
+    position := position + 1;
+    update public.casino_blackjack_players
+    set cards = array[shuffled_deck[position]],
+        hand_state = 'playing',
+        result = '',
+        payout = 0,
+        updated_at = now()
+    where game_id = game.id
+      and user_id = player.user_id;
+  end loop;
+
+  position := position + 1;
+  dealt_dealer_cards := array_append(dealt_dealer_cards, shuffled_deck[position]);
+
+  for player in
+    select p.*
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+    order by p.seat
+  loop
+    position := position + 1;
+    update public.casino_blackjack_players
+    set cards = array_append(cards, shuffled_deck[position]),
+        updated_at = now()
+    where game_id = game.id
+      and user_id = player.user_id;
+  end loop;
+
+  position := position + 1;
+  dealt_dealer_cards := array_append(dealt_dealer_cards, shuffled_deck[position]);
+
+  update public.casino_blackjack_players
+  set hand_state = case
+        when public.casino_hand_total(cards) = 21 and array_length(cards, 1) = 2 then 'blackjack'
+        else 'playing'
+      end,
+      updated_at = now()
+  where game_id = game.id;
+
+  update public.casino_blackjack_games
+  set status = 'playing',
+      dealer_cards = dealt_dealer_cards,
+      deck = shuffled_deck,
+      deck_position = position,
+      updated_at = now()
+  where id = game.id;
+
+  if public.casino_hand_total(dealt_dealer_cards) = 21
+    or not exists (
+      select 1
+      from public.casino_blackjack_players p
+      where p.game_id = game.id
+        and p.hand_state = 'playing'
+    ) then
+    perform public.casino_finish_blackjack(game.id);
+  end if;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_hit_blackjack(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  player public.casino_blackjack_players;
+  new_cards text[];
+  next_position integer;
+  total integer;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'playing' then
+    raise exception 'blackjack_game_not_playing';
+  end if;
+
+  select p.*
+  into player
+  from public.casino_blackjack_players p
+  where p.game_id = game.id
+    and p.user_id = auth.uid()
+  for update;
+
+  if player.user_id is null or player.hand_state <> 'playing' then
+    raise exception 'blackjack_action_unavailable';
+  end if;
+
+  next_position := game.deck_position + 1;
+  if next_position > coalesce(array_length(game.deck, 1), 0) then
+    raise exception 'casino_deck_empty';
+  end if;
+
+  new_cards := array_append(player.cards, game.deck[next_position]);
+  total := public.casino_hand_total(new_cards);
+
+  update public.casino_blackjack_players
+  set cards = new_cards,
+      hand_state = case when total > 21 then 'busted' when total = 21 then 'stood' else 'playing' end,
+      updated_at = now()
+  where game_id = game.id
+    and user_id = auth.uid();
+
+  update public.casino_blackjack_games
+  set deck_position = next_position,
+      updated_at = now()
+  where id = game.id;
+
+  if not exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.hand_state = 'playing'
+  ) then
+    perform public.casino_finish_blackjack(game.id);
+  end if;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_stand_blackjack(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'playing' then
+    raise exception 'blackjack_game_not_playing';
+  end if;
+
+  update public.casino_blackjack_players
+  set hand_state = 'stood',
+      updated_at = now()
+  where game_id = game.id
+    and user_id = auth.uid()
+    and hand_state = 'playing';
+
+  if not found then
+    raise exception 'blackjack_action_unavailable';
+  end if;
+
+  if not exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.hand_state = 'playing'
+  ) then
+    perform public.casino_finish_blackjack(game.id);
+  end if;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_forfeit_blackjack(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'playing' then
+    raise exception 'blackjack_game_not_playing';
+  end if;
+
+  update public.casino_blackjack_players
+  set hand_state = 'busted',
+      result = 'forfeit',
+      updated_at = now()
+  where game_id = game.id
+    and user_id = auth.uid()
+    and hand_state = 'playing';
+
+  if not found then
+    raise exception 'blackjack_action_unavailable';
+  end if;
+
+  if not exists (
+    select 1
+    from public.casino_blackjack_players p
+    where p.game_id = game.id
+      and p.hand_state = 'playing'
+  ) then
+    perform public.casino_finish_blackjack(game.id);
+  end if;
+
+  return public.casino_get_blackjack_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_leave_blackjack(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+  player public.casino_blackjack_players;
+  member public.casino_blackjack_players;
+begin
+  select g.*
+  into game
+  from public.casino_blackjack_games g
+  where g.id = game_id_input
+  for update;
+
+  if game.id is null or game.status <> 'waiting' then
+    raise exception 'blackjack_leave_unavailable';
+  end if;
+
+  select p.*
+  into player
+  from public.casino_blackjack_players p
+  where p.game_id = game.id
+    and p.user_id = auth.uid()
+  for update;
+
+  if player.user_id is null then
+    raise exception 'blackjack_game_not_found';
+  end if;
+
+  if game.host_id = auth.uid() then
+    for member in
+      select p.*
+      from public.casino_blackjack_players p
+      where p.game_id = game.id
+      for update
+    loop
+      if member.bet > 0 then
+        perform public.casino_wallet_delta(member.user_id, member.bet, 'casino:blackjack:refund', game.id::text);
+      end if;
+    end loop;
+
+    update public.casino_blackjack_games
+    set status = 'cancelled',
+        updated_at = now(),
+        finished_at = now()
+    where id = game.id;
+  else
+    if player.bet > 0 then
+      perform public.casino_wallet_delta(player.user_id, player.bet, 'casino:blackjack:refund', game.id::text);
+    end if;
+
+    delete from public.casino_blackjack_players
+    where game_id = game.id
+      and user_id = auth.uid();
+
+    update public.casino_blackjack_games
+    set updated_at = now()
+    where id = game.id;
+  end if;
+
+  return jsonb_build_object('left', true, 'cancelled', game.host_id = auth.uid());
+end;
+$$;
+
+create or replace function public.casino_get_ladder_state(game_id_input uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_ladder_games;
+  wallet_points bigint;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  select g.*
+  into game
+  from public.casino_ladder_games g
+  where g.id = game_id_input
+    and g.user_id = auth.uid();
+
+  if game.id is null then
+    raise exception 'ladder_game_not_found';
+  end if;
+
+  select wallet.points
+  into wallet_points
+  from public.user_wallets wallet
+  where wallet.user_id = auth.uid();
+
+  return jsonb_build_object(
+    'id', game.id,
+    'wager', game.wager,
+    'status', game.status,
+    'round_no', game.round_no,
+    'current_multiplier', game.current_multiplier,
+    'revealed_cards', to_jsonb(game.revealed_cards),
+    'last_guess', game.last_guess,
+    'last_result', game.last_result,
+    'payout', game.payout,
+    'wallet_points', coalesce(wallet_points, 0),
+    'updated_at', game.updated_at
+  );
+end;
+$$;
+
+create or replace function public.casino_start_ladder(wager_input bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_wager bigint;
+  game public.casino_ladder_games;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  clean_wager := coalesce(wager_input, 0);
+  if clean_wager < 10 then
+    raise exception 'casino_minimum_bet';
+  end if;
+
+  perform public.casino_wallet_delta(auth.uid(), -clean_wager, 'casino:ladder:bet', 'new');
+
+  update public.casino_ladder_games
+  set status = 'lost',
+      last_result = 'abandoned',
+      updated_at = now(),
+      finished_at = now()
+  where user_id = auth.uid()
+    and status = 'playing';
+
+  insert into public.casino_ladder_games (user_id, wager, deck)
+  values (auth.uid(), clean_wager, public.casino_new_deck())
+  returning * into game;
+
+  return public.casino_get_ladder_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_ladder_guess(game_id_input uuid, guess_input text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_ladder_games;
+  clean_guess text;
+  drawn_card text;
+  suit_code text;
+  previous_rank integer;
+  second_previous_rank integer;
+  drawn_rank integer;
+  low_rank integer;
+  high_rank integer;
+  correct boolean := false;
+  next_multiplier integer;
+  payout_value bigint := 0;
+begin
+  clean_guess := lower(trim(coalesce(guess_input, '')));
+
+  select g.*
+  into game
+  from public.casino_ladder_games g
+  where g.id = game_id_input
+    and g.user_id = auth.uid()
+  for update;
+
+  if game.id is null then
+    raise exception 'ladder_game_not_found';
+  end if;
+
+  if game.status <> 'playing' then
+    raise exception 'ladder_game_finished';
+  end if;
+
+  if game.round_no = 1 and clean_guess not in ('red', 'black') then
+    raise exception 'ladder_invalid_guess';
+  elsif game.round_no = 2 and clean_guess not in ('higher', 'lower') then
+    raise exception 'ladder_invalid_guess';
+  elsif game.round_no = 3 and clean_guess not in ('inside', 'outside') then
+    raise exception 'ladder_invalid_guess';
+  elsif game.round_no = 4 and clean_guess not in ('H', 'D', 'C', 'S', 'h', 'd', 'c', 's') then
+    raise exception 'ladder_invalid_guess';
+  end if;
+
+  if game.draw_position >= coalesce(array_length(game.deck, 1), 0) then
+    raise exception 'casino_deck_empty';
+  end if;
+
+  game.draw_position := game.draw_position + 1;
+  drawn_card := game.deck[game.draw_position];
+  suit_code := right(drawn_card, 1);
+  drawn_rank := public.casino_card_rank_value(drawn_card);
+
+  if game.round_no = 1 then
+    correct := (clean_guess = 'red' and suit_code in ('H', 'D'))
+      or (clean_guess = 'black' and suit_code in ('C', 'S'));
+  elsif game.round_no = 2 then
+    previous_rank := public.casino_card_rank_value(game.revealed_cards[array_length(game.revealed_cards, 1)]);
+    correct := (clean_guess = 'higher' and drawn_rank > previous_rank)
+      or (clean_guess = 'lower' and drawn_rank < previous_rank);
+  elsif game.round_no = 3 then
+    previous_rank := public.casino_card_rank_value(game.revealed_cards[array_length(game.revealed_cards, 1)]);
+    second_previous_rank := public.casino_card_rank_value(game.revealed_cards[array_length(game.revealed_cards, 1) - 1]);
+    low_rank := least(previous_rank, second_previous_rank);
+    high_rank := greatest(previous_rank, second_previous_rank);
+    correct := (clean_guess = 'inside' and drawn_rank > low_rank and drawn_rank < high_rank)
+      or (clean_guess = 'outside' and (drawn_rank <= low_rank or drawn_rank >= high_rank));
+  else
+    correct := upper(clean_guess) = suit_code;
+  end if;
+
+  game.revealed_cards := array_append(game.revealed_cards, drawn_card);
+
+  if not correct then
+    update public.casino_ladder_games
+    set status = 'lost',
+        draw_position = game.draw_position,
+        revealed_cards = game.revealed_cards,
+        last_guess = clean_guess,
+        last_result = 'wrong',
+        updated_at = now(),
+        finished_at = now()
+    where id = game.id;
+  elsif game.round_no = 4 then
+    payout_value := game.wager * 20;
+    perform public.casino_wallet_delta(auth.uid(), payout_value, 'casino:ladder:x20', game.id::text);
+
+    update public.casino_ladder_games
+    set status = 'won',
+        current_multiplier = 20,
+        draw_position = game.draw_position,
+        revealed_cards = game.revealed_cards,
+        last_guess = clean_guess,
+        last_result = 'correct',
+        payout = payout_value,
+        updated_at = now(),
+        finished_at = now()
+    where id = game.id;
+  else
+    next_multiplier := case game.round_no when 1 then 2 when 2 then 3 else 4 end;
+
+    update public.casino_ladder_games
+    set round_no = game.round_no + 1,
+        current_multiplier = next_multiplier,
+        draw_position = game.draw_position,
+        revealed_cards = game.revealed_cards,
+        last_guess = clean_guess,
+        last_result = 'correct',
+        updated_at = now()
+    where id = game.id;
+  end if;
+
+  return public.casino_get_ladder_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_cashout_ladder(game_id_input uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_ladder_games;
+  payout_value bigint;
+begin
+  select g.*
+  into game
+  from public.casino_ladder_games g
+  where g.id = game_id_input
+    and g.user_id = auth.uid()
+  for update;
+
+  if game.id is null then
+    raise exception 'ladder_game_not_found';
+  end if;
+
+  if game.status <> 'playing' or game.current_multiplier <= 1 then
+    raise exception 'ladder_cashout_unavailable';
+  end if;
+
+  payout_value := game.wager * game.current_multiplier;
+  perform public.casino_wallet_delta(auth.uid(), payout_value, 'casino:ladder:cashout', game.id::text);
+
+  update public.casino_ladder_games
+  set status = 'cashed_out',
+      payout = payout_value,
+      last_result = 'cashout',
+      updated_at = now(),
+      finished_at = now()
+  where id = game.id;
+
+  return public.casino_get_ladder_state(game.id);
+end;
+$$;
+
+create or replace function public.casino_get_health()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'ready',
+      to_regclass('public.casino_blackjack_games') is not null
+      and to_regclass('public.casino_blackjack_players') is not null
+      and to_regclass('public.casino_ladder_games') is not null
+      and to_regprocedure('public.casino_create_blackjack()') is not null
+      and to_regprocedure('public.casino_start_ladder(bigint)') is not null,
+    'blackjack', to_regprocedure('public.casino_create_blackjack()') is not null,
+    'ladder', to_regprocedure('public.casino_start_ladder(bigint)') is not null
+  );
+$$;
+
+revoke all on function public.casino_new_deck() from public, anon, authenticated;
+revoke all on function public.casino_card_rank_value(text) from public, anon, authenticated;
+revoke all on function public.casino_hand_total(text[]) from public, anon, authenticated;
+revoke all on function public.casino_wallet_delta(uuid, bigint, text, text) from public, anon, authenticated;
+revoke all on function public.casino_finish_blackjack(uuid) from public, anon, authenticated;
+
+revoke all on function public.casino_get_blackjack_state(uuid) from public, anon;
+revoke all on function public.casino_create_blackjack() from public, anon;
+revoke all on function public.casino_join_blackjack(text) from public, anon;
+revoke all on function public.casino_set_blackjack_bet(uuid, bigint) from public, anon;
+revoke all on function public.casino_start_blackjack(uuid) from public, anon;
+revoke all on function public.casino_hit_blackjack(uuid) from public, anon;
+revoke all on function public.casino_stand_blackjack(uuid) from public, anon;
+revoke all on function public.casino_forfeit_blackjack(uuid) from public, anon;
+revoke all on function public.casino_leave_blackjack(uuid) from public, anon;
+revoke all on function public.casino_get_ladder_state(uuid) from public, anon;
+revoke all on function public.casino_start_ladder(bigint) from public, anon;
+revoke all on function public.casino_ladder_guess(uuid, text) from public, anon;
+revoke all on function public.casino_cashout_ladder(uuid) from public, anon;
+revoke all on function public.casino_get_health() from public, anon;
+
+grant execute on function public.casino_get_blackjack_state(uuid) to authenticated;
+grant execute on function public.casino_create_blackjack() to authenticated;
+grant execute on function public.casino_join_blackjack(text) to authenticated;
+grant execute on function public.casino_set_blackjack_bet(uuid, bigint) to authenticated;
+grant execute on function public.casino_start_blackjack(uuid) to authenticated;
+grant execute on function public.casino_hit_blackjack(uuid) to authenticated;
+grant execute on function public.casino_stand_blackjack(uuid) to authenticated;
+grant execute on function public.casino_forfeit_blackjack(uuid) to authenticated;
+grant execute on function public.casino_leave_blackjack(uuid) to authenticated;
+grant execute on function public.casino_get_ladder_state(uuid) to authenticated;
+grant execute on function public.casino_start_ladder(bigint) to authenticated;
+grant execute on function public.casino_ladder_guess(uuid, text) to authenticated;
+grant execute on function public.casino_cashout_ladder(uuid) to authenticated;
+grant execute on function public.casino_get_health() to authenticated;
 
 -- Pour activer le premier admin, remplace l'UUID puis execute une seule fois.
 -- Ce bloc ne bloque pas le script si l'utilisateur n'existe pas encore.

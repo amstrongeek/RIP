@@ -1,6 +1,6 @@
 # Activer les comptes et le tchat RIP
 
-Le code des comptes, profils, avatars, salons, amis, DM, tchat, dashboard, arcade, boutique, classements, points et mini-jeux, missions, equipements et morpion multi est deja dans le site.
+Le code des comptes, profils, avatars, salons, amis, DM, tchat, dashboard, arcade, casino, boutique, classements, points et mini-jeux, missions, equipements et morpion multi est deja dans le site.
 Il reste seulement a creer/configurer la base Supabase, puis a relancer le SQL quand le site change.
 
 ## 1. Creer le projet
@@ -37,11 +37,14 @@ Le script cree :
 - `shop_items` et `user_inventory` pour la boutique et l'inventaire
 - `game_scores` pour les scores solo et leaderboards
 - `game_duels` pour les duels multijoueurs
+- `casino_blackjack_games` et `casino_blackjack_players` pour les tables de blackjack privees de 1 a 4 joueurs
+- `casino_ladder_games` pour le jeu de tirage RIP x20
 - `user_achievements` pour les succes debloques
 - `user_notifications` pour le centre de notifications
 - les regles RLS pour securiser les donnees et les uploads d'avatars
 - un trigger qui cree un profil a chaque inscription Supabase
 - les fonctions `join_room_by_code`, `create_or_get_dm`, `claim_daily_reward`, `purchase_shop_item`, `complete_solo_game` et les fonctions de duel
+- les RPC Casino qui melangent les paquets, verrouillent les mises et calculent les gains cote serveur
 - les index utiles pour les statistiques et le tchat
 
 ## 3. Recuperer les infos publiques
@@ -116,6 +119,7 @@ Apres le `Run`, recharge ton site avec `Ctrl + F5`.
 - missions, equipements cosmetiques et morpion multi
 - mini-jeu multijoueur : Duel Pierre/Feuille/Ciseaux avec code a partager
 - leaderboards Supabase par mini-jeu
+- casino securise : blackjack prive jusqu'a quatre joueurs et defi de quatre cartes jusqu'a x20
 
 ## Probleme frequent
 
