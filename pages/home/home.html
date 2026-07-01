@@ -3,100 +3,204 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RIP #TUFF | Accueil</title>
+  <meta name="description" content="RIP Casino, dix jeux gratuits avec des points virtuels et aucune mise d'argent reel.">
+  <title>RIP Casino | Jeux gratuits</title>
   <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
-  <link rel="stylesheet" href="home.css?v=20260628-casino1">
+  <link rel="stylesheet" href="home.css?v=20260701-casino-rebuild3">
 </head>
-<body class="app-body home-body" data-platform-page="home">
-  <header class="site-header app-header">
-    <a class="logo brand-logo" href="../home/home.html">
-      <img src="../../assets/brand/rip-logo.png" alt="" aria-hidden="true">
-      <span>RIP #TUFF</span>
+<body>
+  <header class="site-header">
+    <a class="brand" href="home.html" aria-label="Accueil RIP Casino">
+      <img src="../../assets/brand/rip-logo.png" alt="">
+      <span>RIP CASINO</span>
     </a>
-    <div class="header-actions" data-header-actions>
-      <a class="header-login" href="../login/login.html" data-auth-visible="guest">Connexion</a>
-      <a class="account-chip" href="../account/account-profile.html" data-header-account data-auth-visible="user" aria-label="Ouvrir mon profil">
-        <span class="account-chip-avatar" data-header-avatar>?</span>
-        <span class="account-chip-name" data-header-name>Compte</span>
-      </a>
-      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-label="Ouvrir le menu">Menu</button>
-    </div>
-    <nav class="nav" data-main-nav aria-label="Navigation principale">
-      <a href="../home/home.html">Accueil</a>
-      <a href="../chat/chat.html">Tchat</a>
-      <a href="../dashboard/dashboard.html">Dashboard</a>
-      <a href="../arcade/arcade.html">Arcade</a>
-      <a href="../casino/casino.html">Casino</a>
-      <a href="../shop/shop.html">Boutique</a>
-      <a href="../leaderboards/leaderboards.html">Classements</a>
-      <a href="../achievements/achievements.html">Succes</a>
-      <a href="../admin/admin.html" data-auth-visible="admin" hidden>Admin</a>
+
+    <nav class="header-nav" aria-label="Navigation principale">
+      <a href="#games">Jeux</a>
+      <a href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Discord</a>
     </nav>
+
+    <div class="header-account">
+      <div class="wallet-chip" data-auth-only hidden aria-label="Solde virtuel">
+        <span class="wallet-orb" aria-hidden="true"></span>
+        <span>
+          <strong data-wallet-points>0</strong>
+          <small data-wallet-euro>~0,00 EUR</small>
+        </span>
+      </div>
+      <a class="login-button" href="../login/login.html" data-guest-only>Connexion</a>
+      <button class="account-button" type="button" data-account-button data-auth-only hidden aria-expanded="false">
+        <span class="account-avatar" data-account-avatar>?</span>
+        <span data-account-name>Compte</span>
+      </button>
+      <div class="account-menu" data-account-menu hidden>
+        <strong data-menu-name>Compte</strong>
+        <span data-menu-email></span>
+        <button type="button" data-logout>Deconnexion</button>
+      </div>
+    </div>
   </header>
 
-  <main class="home-page">
-    <section class="home-hero" aria-labelledby="home-title">
-      <div class="home-hero-content">
-        <p class="eyebrow">RIP #TUFF</p>
-        <h1 id="home-title">Bienvenue sur RIP #TUFF</h1>
-        <p class="platform-lead">Tchat, arcade, boutique et profil joueur au meme endroit.</p>
-        <div class="home-actions">
-          <a class="button primary" href="../login/login.html" data-auth-visible="guest">Connexion</a>
-          <a class="button primary" href="../account/account-profile.html" data-auth-visible="user">Mon compte</a>
-          <a class="button primary" href="../chat/chat.html">Ouvrir le tchat</a>
-          <a class="button secondary" href="../arcade/arcade.html">Jouer</a>
+  <main>
+    <section class="space-hero" aria-labelledby="hero-title">
+      <div class="hero-content">
+        <p class="eyebrow">10 jeux · 0 euro depense</p>
+        <h1 id="hero-title">RIP CASINO</h1>
+        <p class="hero-copy">Mise des points virtuels, vise les multiplicateurs et garde le controle. Aucun depot, aucun achat, aucun retrait.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#games">Choisir un jeu</a>
           <a class="button secondary" href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Rejoindre Discord</a>
         </div>
       </div>
-    </section>
 
-    <section class="home-section discord-invite-section" aria-labelledby="discord-title">
-      <div class="discord-invite-card">
-        <img class="discord-banner" src="../../assets/brand/rip-tuff-banner.png" alt="Banniere JOIN RIP #TUFF">
-        <div class="discord-content">
-          <img class="discord-logo" src="../../assets/brand/rip-logo.png" alt="Logo RIP">
-          <div>
-            <p class="eyebrow">Discord officiel</p>
-            <h2 id="discord-title">Rejoins RIP #TUFF</h2>
-            <p class="platform-lead">Passe sur le Discord pour les annonces, le tchat communaute et les prochains events.</p>
-            <div class="home-actions">
-              <a class="button primary" href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Rejoindre Discord</a>
-              <a class="button secondary" href="../chat/chat.html">Ouvrir le tchat</a>
-            </div>
-          </div>
-        </div>
+      <div class="hero-jackpot" aria-label="Bonus gratuit">
+        <span>Bonus de bienvenue</span>
+        <strong>10 000</strong>
+        <small>points offerts une fois</small>
       </div>
     </section>
 
-    <section class="home-section bug-section" aria-labelledby="bug-title">
+    <section class="casino-floor" id="games" aria-labelledby="games-title">
+      <header class="section-header">
+        <div>
+          <p class="eyebrow">Casino gratuit</p>
+          <h2 id="games-title">Choisis ta table</h2>
+        </div>
+        <div class="floor-status" data-casino-status role="status">Initialisation...</div>
+      </header>
+
+      <div class="game-grid" data-game-grid>
+        <article class="game-card featured" data-game-card="blackjack">
+          <div class="game-art blackjack-art" aria-hidden="true"><span>A</span><span>K</span></div>
+          <div class="game-meta"><span>Table privee</span><strong>x2.5</strong></div>
+          <h3>Blackjack</h3>
+          <p>Seul ou jusqu'a quatre joueurs contre le croupier.</p>
+          <button type="button" data-open-game="blackjack">Jouer</button>
+        </article>
+
+        <article class="game-card featured" data-game-card="ladder">
+          <div class="game-art ladder-art" aria-hidden="true"><span>x2</span><span>x20</span></div>
+          <div class="game-meta"><span>4 tirages</span><strong>x20</strong></div>
+          <h3>RIP x20</h3>
+          <p>Rouge, hauteur, intervalle puis couleur finale.</p>
+          <button type="button" data-open-game="ladder">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="roulette">
+          <div class="game-art roulette-art" aria-hidden="true"><span>0</span><span>17</span><span>32</span></div>
+          <div class="game-meta"><span>Classique</span><strong>x36</strong></div>
+          <h3>Cosmic Roulette</h3>
+          <p>Joue une couleur ou tente directement un numero.</p>
+          <button type="button" data-open-game="roulette">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="slots">
+          <div class="game-art slots-art" aria-hidden="true"><span>7</span><span>7</span><span>◆</span></div>
+          <div class="game-meta"><span>3 rouleaux</span><strong>x20</strong></div>
+          <h3>Nebula Slots</h3>
+          <p>Aligne les symboles rares de la galaxie.</p>
+          <button type="button" data-open-game="slots">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="baccarat">
+          <div class="game-art baccarat-art" aria-hidden="true"><span>P</span><span>8</span><span>B</span></div>
+          <div class="game-meta"><span>Express</span><strong>x8</strong></div>
+          <h3>Mini Baccarat</h3>
+          <p>Joueur, banque ou egalite : le plus proche de neuf gagne.</p>
+          <button type="button" data-open-game="baccarat">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="dice">
+          <div class="game-art dice-art" aria-hidden="true"><span>⚄</span><span>⚂</span></div>
+          <div class="game-meta"><span>Deux des</span><strong>x5</strong></div>
+          <h3>Star Dice</h3>
+          <p>Moins de sept, plus de sept, ou sept exact.</p>
+          <button type="button" data-open-game="dice">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="coin">
+          <div class="game-art coin-art" aria-hidden="true"><span>R</span></div>
+          <div class="game-meta"><span>Face ou pile</span><strong>x1.9</strong></div>
+          <h3>Quantum Coin</h3>
+          <p>Un choix, un lancer serveur, un resultat immediat.</p>
+          <button type="button" data-open-game="coin">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="wheel">
+          <div class="game-art wheel-art" aria-hidden="true"><span>5</span><span>2</span><span>0</span></div>
+          <div class="game-meta"><span>20 segments</span><strong>x5</strong></div>
+          <h3>Lucky Orbit</h3>
+          <p>L'orbite choisit ton multiplicateur.</p>
+          <button type="button" data-open-game="wheel">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="mines">
+          <div class="game-art mines-art" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="game-meta"><span>5 mines</span><strong>x3</strong></div>
+          <h3>Asteroid Mines</h3>
+          <p>Choisis trois cases sures dans une grille de seize.</p>
+          <button type="button" data-open-game="mines">Jouer</button>
+        </article>
+
+        <article class="game-card" data-game-card="poker">
+          <div class="game-art poker-art" aria-hidden="true"><span>Q</span><span>K</span><span>A</span></div>
+          <div class="game-meta"><span>3 cartes</span><strong>x25</strong></div>
+          <h3>Three Card Poker</h3>
+          <p>Paire, couleur, suite ou brelan cosmique.</p>
+          <button type="button" data-open-game="poker">Jouer</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="community-band" aria-labelledby="community-title">
+      <img src="../../assets/brand/rip-logo.png" alt="Logo RIP">
       <div>
-        <p class="eyebrow">Bug report</p>
-        <h2 id="bug-title">Signaler un bug</h2>
-        <p class="platform-lead">Le signalement est enregistre dans Supabase. Le webhook Discord sera branche cote serveur plus tard.</p>
+        <p class="eyebrow">Communaute</p>
+        <h2 id="community-title">Retrouve les joueurs sur Discord</h2>
+        <p>Partage tes tirages, trouve une table de blackjack et suis les prochains jeux.</p>
       </div>
-      <form class="bug-form" data-bug-form>
-        <div class="field">
-          <label for="bug-title-input">Titre</label>
-          <input id="bug-title-input" class="panel-search" name="title" type="text" maxlength="80" required placeholder="Ex: impossible de lancer Snake">
-        </div>
-        <div class="field">
-          <label for="bug-body-input">Details</label>
-          <textarea id="bug-body-input" class="panel-search" name="body" maxlength="600" rows="5" required placeholder="Explique ce que tu faisais et ce qui s'est passe."></textarea>
-        </div>
-        <button class="button primary" type="submit">Envoyer le bug</button>
-        <p class="form-message" data-bug-message role="status" aria-live="polite"></p>
-      </form>
+      <a class="button discord" href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Ouvrir Discord</a>
+    </section>
+
+    <section class="value-notice">
+      <strong>Valeur indicative</strong>
+      <p>10 000 points = environ 1 EUR dans la simulation. Les points n'ont aucune valeur monetaire, ne sont ni achetables ni retirables.</p>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <span>RIP #TUFF</span>
-    <span>&copy; <span id="year"></span> Tous droits reserves.</span>
+  <dialog class="game-dialog" data-game-dialog>
+    <button class="dialog-close" type="button" data-dialog-close aria-label="Fermer">×</button>
+    <div class="dialog-heading">
+      <p class="eyebrow" data-dialog-kicker>Jeu instantane</p>
+      <h2 data-dialog-title>Jeu</h2>
+      <p data-dialog-description></p>
+    </div>
+
+    <div class="game-result" data-game-result hidden></div>
+
+    <form class="game-form" data-game-form>
+      <label for="game-wager">Mise en points</label>
+      <div class="wager-row">
+        <input id="game-wager" name="wager" type="number" min="10" step="1" value="10" inputmode="numeric" required>
+        <button type="button" data-wager-all>Max</button>
+      </div>
+      <div class="choice-zone" data-choice-zone></div>
+      <button class="button primary full" type="submit" data-play-button>Lancer</button>
+    </form>
+
+    <a class="button primary full" href="../login/login.html" data-dialog-login hidden>Se connecter pour jouer</a>
+  </dialog>
+
+  <footer>
+    <span>RIP CASINO · Points virtuels uniquement</span>
+    <span>&copy; <span id="year"></span> RIP #TUFF</span>
   </footer>
 
-  <script src="../../shared/supabase/public-config.js?v=20260628-casino1"></script>
-  <script src="../../shared/supabase/data-service.js?v=20260628-casino1"></script>
-  <script src="../../shared/supabase/auth-session.js?v=20260628-casino1"></script>
-  <script src="home-page.js?v=20260628-casino1"></script>
+  <div class="toast-stack" data-toast-stack aria-live="polite"></div>
+
+  <script src="../../shared/supabase/public-config.js?v=20260701-casino-rebuild3"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260701-casino-rebuild3"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260701-casino-rebuild3"></script>
+  <script type="module" src="home-page.js?v=20260701-casino-rebuild3"></script>
 </body>
 </html>

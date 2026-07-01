@@ -1,971 +1,451 @@
-function onReady(callback) {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", callback);
-    return;
-  }
+import {
+  claimWelcomeBonus,
+  getCasinoHealth,
+  playInstantGame
+} from "../../src/services/casino-service.js";
 
-  callback();
-}
-
-function setMessage(element, text, type) {
-  if (!element) {
-    return;
-  }
-
-  element.textContent = text;
-  element.className = "form-message";
-
-  if (type) {
-    element.classList.add(type);
-  }
-}
-
-function humanAuthError(error) {
-  const messages = {
-    "supabase-config-missing": "Supabase n'est pas encore configure.",
-    "pseudo-invalid": "Pseudo invalide : 3 a 20 caracteres, lettres, chiffres, tiret ou underscore.",
-    "email-invalid": "Email invalide.",
-    "signup-failed": "Inscription impossible. Verifie l'email ou reessaie plus tard.",
-    "profile-load-failed": "Session OK, mais le profil Supabase ne charge pas. Verifie la table profiles et la RPC update_my_profile.",
-    "profile-save-failed": "Profil impossible a creer. Verifie la table profiles et les policies Supabase.",
-    "profile-update-failed": "Profil impossible a mettre a jour. Verifie la RPC update_my_profile dans Supabase.",
-    "avatar-too-large": "Image trop lourde. Maximum : 2 Mo.",
-    "avatar-type-invalid": "Format invalide. Utilise PNG, JPG, WEBP ou GIF.",
-    "avatar-upload-failed": "Photo impossible a envoyer. Verifie le bucket avatars et ses policies Supabase.",
-    "avatar-invalid": "Couleur avatar invalide.",
-    "name-style-invalid": "Style de pseudo invalide.",
-    "website-invalid": "Le lien doit commencer par https://",
-    "password-weak": "Mot de passe trop faible.",
-    "password-mismatch": "Les mots de passe ne correspondent pas.",
-    "terms-required": "Tu dois accepter la creation d'un compte Supabase.",
-    "missing-fields": "Remplis tous les champs.",
-    "invalid-login": "Email ou mot de passe incorrect, ou email pas encore confirme.",
-    "session-load-failed": "Session Supabase impossible a charger."
-  };
-
-  return messages[error && error.code] || "Action impossible pour le moment.";
-}
-
-function humanSupabaseError(error, fallback = "Action Supabase impossible.") {
-  const message = String(error && (error.message || error.details || error.hint || error.code) || "");
-  const shortMessage = message ? message.slice(0, 180) : "";
-
-  if (/NetworkError|Failed to fetch|fetch resource|Load failed|TypeError/i.test(message)) {
-    return "Supabase inaccessible depuis ton navigateur. Verifie reseau, VPN, bloqueur ou etat Supabase.";
-  }
-
-  if (/Could not find the function|function .* does not exist|PGRST202/i.test(message)) {
-    return "RPC Supabase manquante : le fichier supabase-chat.sql complet n'a pas ete applique.";
-  }
-
-  if (/permission denied|not authorized|42501|row-level security|violates row-level security/i.test(message)) {
-    return "Permission Supabase refusee. Verifie les grants/RLS du SQL.";
-  }
-
-  if (/relation .* does not exist|table .* does not exist|42P01/i.test(message)) {
-    return "Table Supabase manquante : le fichier supabase-chat.sql complet n'a pas ete applique.";
-  }
-
-  if (/column .* does not exist|42703/i.test(message)) {
-    return "Colonne Supabase manquante. La migration SQL n'est pas complete.";
-  }
-
-  if (/admin_required/i.test(message)) {
-    return "Ton compte n'a pas le role admin/owner.";
-  }
-
-  if (/bug_cooldown/i.test(message)) {
-    return "Attends une minute avant de renvoyer un bug.";
-  }
-
-  return shortMessage ? `${fallback} ${shortMessage}` : fallback;
-}
-
-function formatShortDate(value) {
-  if (!value) {
-    return "--";
-  }
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).format(new Date(value));
-}
-
-function formatRelativeDate(value) {
-  if (!value) {
-    return "--";
-  }
-
-  const date = new Date(value);
-  const diffMs = Date.now() - date.getTime();
-  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
-
-  if (diffMinutes < 1) {
-    return "maintenant";
-  }
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes} min`;
-  }
-
-  const diffHours = Math.round(diffMinutes / 60);
-
-  if (diffHours < 24) {
-    return `${diffHours} h`;
-  }
-
-  return formatShortDate(value);
-}
-
-function setAvatar(element, user) {
-  if (!element || !user) {
-    return;
-  }
-
-  element.replaceChildren();
-  element.style.setProperty("--avatar-color", user.avatarColor || "#39ff88");
-  element.dataset.avatarFrame = user.avatarFrame || "none";
-
-  if (user.avatarUrl) {
-    const image = document.createElement("img");
-    image.src = user.avatarUrl;
-    image.alt = `Avatar de ${user.pseudo || "joueur"}`;
-    image.loading = "lazy";
-    element.append(image);
-    return;
-  }
-
-  element.textContent = (user.pseudo || "?").slice(0, 1).toUpperCase();
-}
-
-function applyNameStyle(element, user) {
-  if (!element || !user) {
-    return;
-  }
-
-  element.textContent = user.pseudo || "Player";
-  element.classList.add("display-name");
-  element.dataset.nameStyle = user.nameStyle || "solid";
-  element.style.setProperty("--name-color-a", user.nameColorA || "#39ff88");
-  element.style.setProperty("--name-color-b", user.nameColorB || "#ffdc5e");
-}
-
-function renderHeaderAccount(user) {
-  document.querySelectorAll("[data-header-account]").forEach((element) => {
-    element.href = PAGE_ROUTES.account;
-    element.title = user && user.pseudo ? `Profil de ${user.pseudo}` : "Ouvrir mon profil";
-  });
-
-  document.querySelectorAll("[data-header-name]").forEach((element) => {
-    element.textContent = user && user.pseudo ? user.pseudo : "Compte";
-  });
-
-  document.querySelectorAll("[data-header-avatar]").forEach((element) => {
-    if (user) {
-      setAvatar(element, user);
-      return;
-    }
-
-    element.replaceChildren();
-    element.removeAttribute("data-avatar-frame");
-    element.style.removeProperty("--avatar-color");
-    element.textContent = "?";
-  });
-}
-
-function applyProfile(user) {
-  if (!user) {
-    return;
-  }
-
-  document.body.dataset.profileTheme = user.profileTheme || "default";
-  renderHeaderAccount(user);
-  document.querySelectorAll("[data-profile-avatar]").forEach((element) => setAvatar(element, user));
-
-  document.querySelectorAll("[data-account-pseudo]").forEach((element) => {
-    applyNameStyle(element, user);
-  });
-
-  document.querySelectorAll("[data-account-title]").forEach((element) => {
-    element.textContent = user.title || "Nouveau joueur";
-  });
-
-  document.querySelectorAll("[data-account-status]").forEach((element) => {
-    element.textContent = user.status || "En ligne";
-  });
-
-  document.querySelectorAll("[data-account-badge]").forEach((element) => {
-    const badge = user.activeBadge || user.active_badge || "";
-    element.hidden = !badge;
-    element.textContent = badge ? `Badge ${badge}` : "";
-  });
-
-  document.querySelectorAll("[data-account-badge-separator]").forEach((element) => {
-    element.hidden = !(user.activeBadge || user.active_badge);
-  });
-
-  document.querySelectorAll("[data-account-email]").forEach((element) => {
-    element.textContent = user.email;
-  });
-
-  document.querySelectorAll("[data-account-created]").forEach((element) => {
-    element.textContent = formatShortDate(user.createdAt);
-  });
-
-  document.querySelectorAll("[data-account-bio]").forEach((element) => {
-    element.textContent = user.bio || "Ajoute une bio pour presenter ton univers.";
-  });
-
-  document.querySelectorAll("[data-account-website]").forEach((element) => {
-    if (user.website) {
-      element.hidden = false;
-      element.href = user.website;
-      element.textContent = user.website.replace(/^https:\/\//, "");
-      return;
-    }
-
-    element.hidden = true;
-    element.removeAttribute("href");
-  });
-}
-
-async function updateAuthVisibility() {
-  const auth = window.RipAuth;
-
-  if (auth && auth.ready) {
-    try {
-      await auth.ready();
-    } catch (error) {
-      console.error("Erreur auth:", error);
-    }
-  }
-
-  const user = auth ? auth.currentUser() : null;
-  let isAdmin = false;
-
-  if (user && window.RipSupabase && window.RipSupabase.isConfigured()) {
-    try {
-      isAdmin = window.RipData && typeof window.RipData.isAdmin === "function"
-        ? await window.RipData.isAdmin()
-        : false;
-    } catch (error) {
-      isAdmin = false;
-    }
-  }
-
-  document.body.classList.toggle("is-authenticated", Boolean(user));
-  renderHeaderAccount(user);
-
-  document.querySelectorAll("[data-auth-visible]").forEach((element) => {
-    const rule = element.getAttribute("data-auth-visible");
-    if (rule === "admin") {
-      element.hidden = !isAdmin;
-      return;
-    }
-    element.hidden = (rule === "guest" && user) || (rule === "user" && !user);
-  });
-}
-
-const PAGE_ROUTES = {
-  home: "../home/home.html",
-  chat: "../chat/chat.html",
-  dashboard: "../dashboard/dashboard.html",
-  arcade: "../arcade/arcade.html",
-  casino: "../casino/casino.html",
-  shop: "../shop/shop.html",
-  leaderboards: "../leaderboards/leaderboards.html",
-  achievements: "../achievements/achievements.html",
-  notifications: "../notifications/notifications.html",
-  account: "../account/account-profile.html",
-  login: "../login/login.html",
-  signup: "../signup/signup.html",
-  admin: "../admin/admin.html"
+const EURO_PER_POINT = 0.0001;
+const ADVANCED_GAMES = new Set(["blackjack", "ladder"]);
+const SYMBOLS = {
+  comet: "COMETE",
+  moon: "LUNE",
+  star: "ETOILE",
+  crown: "COURONNE",
+  seven: "7",
+  diamond: "DIAMANT"
 };
 
-const MAIN_NAV_ITEMS = [
-  { href: PAGE_ROUTES.home, label: "Accueil" },
-  { href: PAGE_ROUTES.chat, label: "Tchat" },
-  { href: PAGE_ROUTES.dashboard, label: "Dashboard" },
-  { href: PAGE_ROUTES.arcade, label: "Arcade" },
-  { href: PAGE_ROUTES.casino, label: "Casino" },
-  { href: PAGE_ROUTES.shop, label: "Boutique" },
-  { href: PAGE_ROUTES.leaderboards, label: "Classements" },
-  { href: PAGE_ROUTES.achievements, label: "Succes" },
-  { href: PAGE_ROUTES.admin, label: "Admin", auth: "admin", hidden: true }
-];
+const GAMES = {
+  roulette: {
+    title: "Cosmic Roulette",
+    kicker: "Roulette serveur",
+    description: "Rouge ou noir paie x2. Un numero exact paie x36.",
+    choices: [
+      { label: "Rouge", value: "red", className: "red-choice" },
+      { label: "Noir", value: "black", className: "black-choice" }
+    ]
+  },
+  slots: {
+    title: "Nebula Slots",
+    kicker: "Trois rouleaux",
+    description: "Deux symboles identiques paient x1.5. Trois symboles peuvent atteindre x20."
+  },
+  baccarat: {
+    title: "Mini Baccarat",
+    kicker: "Le plus proche de neuf",
+    description: "Choisis le joueur, la banque ou une egalite.",
+    choices: [
+      { label: "Joueur x2", value: "player" },
+      { label: "Banque x1.95", value: "banker" },
+      { label: "Egalite x8", value: "tie" }
+    ]
+  },
+  dice: {
+    title: "Star Dice",
+    kicker: "Deux des",
+    description: "Parie sur une somme inferieure a sept, superieure a sept, ou sept exact.",
+    choices: [
+      { label: "Moins de 7", value: "under" },
+      { label: "7 exact x5", value: "seven" },
+      { label: "Plus de 7", value: "over" }
+    ]
+  },
+  coin: {
+    title: "Quantum Coin",
+    kicker: "Pile ou face",
+    description: "Un lancer serveur instantane. Le bon cote paie x1.9.",
+    choices: [
+      { label: "Face", value: "heads" },
+      { label: "Pile", value: "tails" }
+    ]
+  },
+  wheel: {
+    title: "Lucky Orbit",
+    kicker: "Roue cosmique",
+    description: "Vingt segments et un multiplicateur pouvant atteindre x5."
+  },
+  mines: {
+    title: "Asteroid Mines",
+    kicker: "Trois cases a choisir",
+    description: "Selectionne exactement trois cases. Si aucune ne contient une mine, tu gagnes x3."
+  },
+  poker: {
+    title: "Three Card Poker",
+    kicker: "Main automatique",
+    description: "Trois cartes sans remise. Paire, couleur, suite, brelan ou suite couleur."
+  }
+};
 
-function normalizeNavigation() {
-  document.querySelectorAll("[data-main-nav]").forEach((nav) => {
-    nav.replaceChildren();
-    nav.dataset.open = "false";
+const state = {
+  user: null,
+  wallet: null,
+  gameKey: "",
+  selectedValue: "",
+  selectedType: "",
+  selectedMines: new Set(),
+  busy: false
+};
 
-    MAIN_NAV_ITEMS.forEach((item) => {
-      const link = document.createElement("a");
-      link.href = item.href;
-      link.textContent = item.label;
-
-      if (item.external) {
-        link.target = "_blank";
-        link.rel = "noreferrer";
-      }
-
-      if (item.auth) {
-        link.dataset.authVisible = item.auth;
-      }
-
-      if (item.hidden) {
-        link.hidden = true;
-      }
-
-      nav.append(link);
-    });
-  });
+function query(selector) {
+  return document.querySelector(selector);
 }
 
-function bindNavigationMenu() {
-  document.querySelectorAll("[data-nav-toggle]").forEach((button, index) => {
-    const header = button.closest(".site-header");
-    const nav = header ? header.querySelector("[data-main-nav]") : document.querySelector("[data-main-nav]");
+function createElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
 
-    if (!nav) {
-      return;
+function formatPoints(value) {
+  return new Intl.NumberFormat("fr-FR").format(Number(value || 0));
+}
+
+function formatEuro(points) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(points || 0) * EURO_PER_POINT);
+}
+
+function setStatus(message, type = "ok") {
+  const element = query("[data-casino-status]");
+  element.textContent = message;
+  element.dataset.state = type;
+}
+
+function toast(message, type = "success") {
+  const item = createElement("div", `toast ${type}`, message);
+  query("[data-toast-stack]").append(item);
+  window.setTimeout(() => item.remove(), 3600);
+}
+
+function errorMessage(error) {
+  const message = String(error && (error.message || error.details || error.code) || "");
+  if (/casino_get_health|casino_play_instant|casino_claim_welcome_bonus|PGRST202|Could not find the function/i.test(message)) {
+    return "La migration Casino doit etre appliquee dans Supabase.";
+  }
+  if (/not_enough_points/i.test(message)) return "Tu n'as pas assez de points pour cette mise.";
+  if (/casino_minimum_bet/i.test(message)) return "La mise minimum est de 10 points.";
+  if (/casino_invalid_choice/i.test(message)) return "Choix incomplet ou invalide.";
+  if (/Failed to fetch|NetworkError/i.test(message)) return "Supabase est momentanement inaccessible.";
+  return message ? `Action impossible : ${message.slice(0, 120)}` : "Action impossible.";
+}
+
+function renderWallet(wallet) {
+  state.wallet = wallet || state.wallet || { points: 0 };
+  const points = Number(state.wallet.points || 0);
+  query("[data-wallet-points]").textContent = formatPoints(points);
+  query("[data-wallet-euro]").textContent = `~${formatEuro(points)}`;
+}
+
+function renderAccount() {
+  document.querySelectorAll("[data-auth-only]").forEach((element) => {
+    element.hidden = !state.user;
+  });
+  document.querySelectorAll("[data-guest-only]").forEach((element) => {
+    element.hidden = Boolean(state.user);
+  });
+
+  if (!state.user) return;
+
+  query("[data-account-name]").textContent = state.user.pseudo || "Compte";
+  query("[data-menu-name]").textContent = state.user.pseudo || "Compte";
+  query("[data-menu-email]").textContent = state.user.email || "";
+
+  const avatar = query("[data-account-avatar]");
+  avatar.replaceChildren();
+  avatar.style.setProperty("--avatar", state.user.avatarColor || "#39ff88");
+  if (state.user.avatarUrl) {
+    const image = document.createElement("img");
+    image.src = state.user.avatarUrl;
+    image.alt = "";
+    avatar.append(image);
+  } else {
+    avatar.textContent = String(state.user.pseudo || "P").slice(0, 1).toUpperCase();
+  }
+}
+
+async function loadCasino() {
+  if (!state.user) {
+    setStatus("Connecte-toi pour recevoir 10 000 points gratuits et jouer.", "ok");
+    return;
+  }
+
+  try {
+    const walletBefore = await window.RipData.getWallet();
+    renderWallet(walletBefore);
+
+    const health = await getCasinoHealth();
+    if (!health || !health.ready) throw new Error("casino_schema_incomplete");
+
+    const walletAfter = await claimWelcomeBonus();
+    renderWallet(walletAfter);
+    if (Number(walletAfter.points || 0) - Number(walletBefore.points || 0) >= 10000) {
+      toast("Bonus de bienvenue : +10 000 points.");
     }
+    setStatus("Casino pret · 10 jeux · points virtuels uniquement.", "ok");
+  } catch (error) {
+    console.error("Initialisation casino:", error);
+    setStatus(errorMessage(error), "error");
+  }
+}
 
-    if (!nav.id) {
-      nav.id = `main-navigation-${index + 1}`;
-    }
+function bindAccountMenu() {
+  const button = query("[data-account-button]");
+  const menu = query("[data-account-menu]");
 
-    button.setAttribute("aria-controls", nav.id);
-    nav.dataset.open = "false";
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = menu.hidden;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  });
 
-    const close = () => {
-      nav.dataset.open = "false";
+  document.addEventListener("click", (event) => {
+    if (!menu.hidden && !menu.contains(event.target) && !button.contains(event.target)) {
+      menu.hidden = true;
       button.setAttribute("aria-expanded", "false");
-      document.body.classList.remove("nav-open");
-    };
-
-    const open = () => {
-      nav.dataset.open = "true";
-      button.setAttribute("aria-expanded", "true");
-      document.body.classList.add("nav-open");
-    };
-
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (nav.dataset.open === "true") {
-        close();
-        return;
-      }
-
-      open();
-    });
-
-    nav.addEventListener("click", (event) => {
-      const link = event.target.closest("a[href]");
-
-      if (link) {
-        const target = link.getAttribute("target");
-        const href = link.href;
-
-        if (routePath(href) === routePath(window.location.href)) {
-          event.preventDefault();
-          close();
-          return;
-        }
-
-        if (!target || target === "_self") {
-          event.preventDefault();
-          window.location.href = href;
-        }
-        return;
-      }
-
-      event.stopPropagation();
-    });
-
-    document.addEventListener("click", (event) => {
-      if (nav.dataset.open !== "true") {
-        return;
-      }
-
-      if (nav.contains(event.target) || button.contains(event.target)) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-    }, true);
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && nav.dataset.open === "true") {
-        close();
-        button.focus();
-      }
-    });
-  });
-}
-
-function routePath(value) {
-  const url = new URL(value, window.location.href);
-  return url.pathname.replace(/\/index\.html$/, "/");
-}
-
-function markCurrentNavigation() {
-  const current = routePath(window.location.href);
-  document.querySelectorAll("[data-main-nav] a[href]").forEach((link) => {
-    const href = link.getAttribute("href");
-    if (href && routePath(href) === current) {
-      link.setAttribute("aria-current", "page");
-    } else {
-      link.removeAttribute("aria-current");
     }
   });
+
+  query("[data-logout]").addEventListener("click", async () => {
+    await window.RipAuth.logout();
+    window.location.reload();
+  });
 }
 
-function bindBugForm() {
-  const form = document.querySelector("[data-bug-form]");
+function choiceButton(choice) {
+  const button = createElement("button", `choice-button ${choice.className || ""}`, choice.label);
+  button.type = "button";
+  button.dataset.value = choice.value;
+  button.dataset.selected = String(state.selectedValue === choice.value && state.selectedType !== "number");
+  button.addEventListener("click", () => {
+    state.selectedValue = choice.value;
+    state.selectedType = state.gameKey === "roulette" ? "color" : "value";
+    renderChoices();
+  });
+  return button;
+}
 
-  if (!form) {
-    return;
+function renderChoices() {
+  const zone = query("[data-choice-zone]");
+  const config = GAMES[state.gameKey];
+  zone.replaceChildren();
+
+  if (config.choices) {
+    const grid = createElement("div", "choice-grid");
+    config.choices.forEach((choice) => grid.append(choiceButton(choice)));
+    zone.append(grid);
   }
 
-  const message = document.querySelector("[data-bug-message]");
+  if (state.gameKey === "roulette") {
+    const numberInput = createElement("input", "roulette-number");
+    numberInput.type = "number";
+    numberInput.min = "0";
+    numberInput.max = "36";
+    numberInput.placeholder = "Numero de 0 a 36";
+    if (state.selectedType === "number") numberInput.value = state.selectedValue;
+    numberInput.addEventListener("input", () => {
+      if (numberInput.value !== "") {
+        state.selectedType = "number";
+        state.selectedValue = numberInput.value;
+        zone.querySelectorAll(".choice-button").forEach((button) => {
+          button.dataset.selected = "false";
+        });
+      }
+    });
+    zone.append(numberInput);
+  }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    if (!window.RipSupabase || !window.RipSupabase.isConfigured()) {
-      setMessage(message, "Supabase requis pour enregistrer le bug.", "error");
-      return;
-    }
-
-    const submit = form.querySelector("button[type='submit']");
-    const data = Object.fromEntries(new FormData(form));
-    submit.disabled = true;
-    setMessage(message, "Envoi du signalement...", null);
-
-    try {
-      await window.RipData.submitBugReport({
-        title: data.title,
-        body: data.body,
-        pageUrl: window.location.href,
-        userAgent: navigator.userAgent
+  if (state.gameKey === "mines") {
+    const grid = createElement("div", "mine-grid");
+    for (let cell = 0; cell < 16; cell += 1) {
+      const button = createElement("button", "mine-cell", String(cell + 1));
+      button.type = "button";
+      button.dataset.selected = String(state.selectedMines.has(cell));
+      button.addEventListener("click", () => {
+        if (state.selectedMines.has(cell)) {
+          state.selectedMines.delete(cell);
+        } else if (state.selectedMines.size < 3) {
+          state.selectedMines.add(cell);
+        } else {
+          toast("Choisis exactement trois cases.", "error");
+        }
+        renderChoices();
       });
-
-      form.reset();
-      setMessage(message, "Bug envoye. Merci.", "success");
-    } catch (error) {
-      console.error("Bug report:", error);
-      setMessage(message, humanSupabaseError(error, "Bug non envoye pour le moment."), "error");
-    } finally {
-      submit.disabled = false;
+      grid.append(button);
     }
-  });
+    zone.append(grid);
+  }
+
+  if (!config.choices && state.gameKey !== "mines") {
+    zone.append(createElement("p", "dialog-hint", "Aucun choix supplementaire : le serveur effectue le tirage."));
+  }
 }
 
-function bindSignupForm() {
-  const form = document.querySelector("#signup-form");
-
-  if (!form || !window.RipAuth) {
+function openGame(gameKey) {
+  if (ADVANCED_GAMES.has(gameKey)) {
+    const tab = gameKey === "ladder" ? "ladder" : "blackjack";
+    window.location.href = `../casino/casino.html?game=${tab}`;
     return;
   }
 
-  const message = document.querySelector("#signup-message");
-  const passwordInput = document.querySelector("#signup-password");
-  const meter = document.querySelector("[data-password-meter]");
+  const config = GAMES[gameKey];
+  if (!config) return;
 
-  if (passwordInput && meter) {
-    passwordInput.addEventListener("input", () => {
-      const score = window.RipAuth.passwordScore(passwordInput.value);
-      meter.setAttribute("data-score", String(score));
-      meter.style.width = score === 1 ? "20%" : "";
-    });
+  state.gameKey = gameKey;
+  state.selectedMines.clear();
+  state.selectedType = "";
+  state.selectedValue = "";
+  if (config.choices && config.choices.length) {
+    state.selectedValue = config.choices[0].value;
+    state.selectedType = gameKey === "roulette" ? "color" : "value";
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  query("[data-dialog-kicker]").textContent = config.kicker;
+  query("[data-dialog-title]").textContent = config.title;
+  query("[data-dialog-description]").textContent = config.description;
+  query("[data-game-result]").hidden = true;
+  query("[data-game-form]").hidden = !state.user;
+  query("[data-dialog-login]").hidden = Boolean(state.user);
+  renderChoices();
 
-    const submit = form.querySelector("button[type='submit']");
-    const data = Object.fromEntries(new FormData(form));
-    data.accept = Boolean(form.querySelector("#signup-accept:checked"));
-
-    submit.disabled = true;
-    setMessage(message, "Creation du compte Supabase...", null);
-
-    try {
-      const result = await window.RipAuth.register(data);
-
-      if (result.needsEmailConfirmation) {
-        setMessage(message, "Compte cree. Confirme ton email, puis connecte-toi.", "success");
-        form.reset();
-        submit.disabled = false;
-        return;
-      }
-
-      setMessage(message, "Compte cree. Redirection...", "success");
-      setTimeout(() => {
-        window.location.href = PAGE_ROUTES.account;
-      }, 650);
-    } catch (error) {
-      console.error("Erreur inscription:", error);
-      setMessage(message, humanAuthError(error), "error");
-      submit.disabled = false;
-    }
-  });
+  const dialog = query("[data-game-dialog]");
+  dialog.showModal();
+  document.body.classList.add("dialog-open");
 }
 
-function bindLoginForm() {
-  const form = document.querySelector("#login-form");
+function closeDialog() {
+  const dialog = query("[data-game-dialog]");
+  if (dialog.open) dialog.close();
+  document.body.classList.remove("dialog-open");
+}
 
-  if (!form || !window.RipAuth) {
+function buildChoice() {
+  if (state.gameKey === "mines") {
+    if (state.selectedMines.size !== 3) throw new Error("casino_invalid_choice");
+    return { cells: [...state.selectedMines].sort((a, b) => a - b) };
+  }
+  if (["slots", "wheel", "poker"].includes(state.gameKey)) return {};
+  if (!state.selectedValue) throw new Error("casino_invalid_choice");
+  if (state.gameKey === "roulette") return { type: state.selectedType, value: state.selectedValue };
+  return { value: state.selectedValue };
+}
+
+function resultText(result) {
+  const outcome = result.outcome || {};
+  if (result.game_key === "roulette") return `Numero ${outcome.number} · ${outcome.color}`;
+  if (result.game_key === "slots") return (outcome.reels || []).map((symbol) => SYMBOLS[symbol] || symbol).join(" · ");
+  if (result.game_key === "baccarat") return `Joueur ${outcome.player} · Banque ${outcome.banker} · ${outcome.winner}`;
+  if (result.game_key === "dice") return `Des ${(outcome.dice || []).join(" + ")} = ${outcome.sum}`;
+  if (result.game_key === "coin") return outcome.side === "heads" ? "FACE" : "PILE";
+  if (result.game_key === "wheel") return `Segment ${outcome.segment} · multiplicateur x${outcome.multiplier}`;
+  if (result.game_key === "mines") return outcome.safe
+    ? "Tes trois cases sont sures."
+    : `Mine touchee. Mines : ${(outcome.mines || []).map((cell) => Number(cell) + 1).join(", ")}`;
+  if (result.game_key === "poker") return `${(outcome.cards || []).join(" · ")} · ${String(outcome.hand || "high").replaceAll("_", " ")}`;
+  return "Tirage termine.";
+}
+
+function renderResult(result) {
+  const panel = query("[data-game-result]");
+  panel.replaceChildren();
+  panel.hidden = false;
+  panel.dataset.result = Number(result.payout || 0) > Number(result.wager || 0) ? "win" : "lose";
+
+  const title = Number(result.payout || 0) > 0
+    ? `Retour : ${formatPoints(result.payout)} points`
+    : "Aucun gain sur ce tirage";
+  panel.append(
+    createElement("strong", "", title),
+    createElement("p", "", resultText(result))
+  );
+}
+
+async function submitGame(event) {
+  event.preventDefault();
+  if (state.busy || !state.user) return;
+
+  const wager = Number(new FormData(event.currentTarget).get("wager"));
+  if (!Number.isSafeInteger(wager) || wager < 10) {
+    toast("La mise minimum est de 10 points.", "error");
+    return;
+  }
+  if (wager > Number(state.wallet && state.wallet.points || 0)) {
+    toast("Solde insuffisant.", "error");
     return;
   }
 
-  const message = document.querySelector("#login-message");
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const submit = form.querySelector("button[type='submit']");
-    const data = Object.fromEntries(new FormData(form));
-
-    submit.disabled = true;
-    setMessage(message, "Verification Supabase...", null);
-
-    try {
-      await window.RipAuth.login(data.email, data.password);
-      setMessage(message, "Connexion reussie. Redirection...", "success");
-      setTimeout(() => {
-        window.location.href = PAGE_ROUTES.dashboard;
-      }, 650);
-    } catch (error) {
-      console.error("Erreur connexion:", error);
-      setMessage(message, humanAuthError(error), "error");
-      submit.disabled = false;
-    }
-  });
-}
-
-async function bindAccountPage() {
-  const page = document.querySelector("[data-protected-page]");
-
-  if (!page || !window.RipAuth) {
+  let choice;
+  try {
+    choice = buildChoice();
+  } catch (error) {
+    toast("Complete ton choix avant de lancer.", "error");
     return;
   }
 
-  const message = document.querySelector("#account-message");
+  state.busy = true;
+  const button = query("[data-play-button]");
+  button.disabled = true;
+  button.textContent = "Tirage...";
+
+  try {
+    const result = await playInstantGame(state.gameKey, wager, choice);
+    renderResult(result);
+    renderWallet(result.wallet);
+  } catch (error) {
+    console.error("Jeu casino:", error);
+    toast(errorMessage(error), "error");
+  } finally {
+    state.busy = false;
+    button.disabled = false;
+    button.textContent = "Relancer";
+  }
+}
+
+function bindGames() {
+  document.querySelectorAll("[data-open-game]").forEach((button) => {
+    button.addEventListener("click", () => openGame(button.dataset.openGame));
+  });
+
+  query("[data-dialog-close]").addEventListener("click", closeDialog);
+  query("[data-game-dialog]").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeDialog();
+  });
+  query("[data-game-dialog]").addEventListener("close", () => {
+    document.body.classList.remove("dialog-open");
+  });
+  query("[data-game-form]").addEventListener("submit", submitGame);
+  query("[data-wager-all]").addEventListener("click", () => {
+    query("#game-wager").value = String(Math.max(10, Number(state.wallet && state.wallet.points || 10)));
+  });
+}
+
+async function initialize() {
+  query("#year").textContent = String(new Date().getFullYear());
+  bindAccountMenu();
+  bindGames();
 
   try {
     await window.RipAuth.ready();
+    state.user = window.RipAuth.currentUser();
   } catch (error) {
-    console.error("Erreur compte:", error);
+    console.error("Session:", error);
   }
 
-  const user = window.RipAuth.currentUser();
-
-  if (!user) {
-    setMessage(message, "Connecte-toi d'abord. Redirection...", "error");
-    setTimeout(() => {
-      window.location.href = PAGE_ROUTES.login;
-    }, 900);
-    return;
-  }
-
-  applyProfile(user);
-
-  if (window.RipAuth.profileError && window.RipAuth.profileError()) {
-    setMessage(message, humanAuthError(window.RipAuth.profileError()), "error");
-  }
-
-  const form = document.querySelector("#profile-form");
-  const bioInput = document.querySelector("#profile-bio");
-  const bioCounter = document.querySelector("[data-profile-bio-count]");
-  const statsMessages = document.querySelector("[data-account-messages]");
-  const statsLastMessage = document.querySelector("[data-account-last-message]");
-  await bindProfileShareCard(user);
-
-  if (form) {
-    if (form.elements.pseudo) {
-      form.elements.pseudo.value = user.pseudo || "";
-    }
-
-    if (form.elements.status) {
-      form.elements.status.value = user.status || "En ligne";
-    }
-
-    if (form.elements.website) {
-      form.elements.website.value = user.website || "";
-    }
-
-    if (form.elements.bio) {
-      form.elements.bio.value = user.bio || "";
-    }
-  }
-
-  if (bioInput && bioCounter) {
-    const syncBioCount = () => {
-      bioCounter.textContent = String(bioInput.value.length);
-    };
-
-    syncBioCount();
-    bioInput.addEventListener("input", syncBioCount);
-  }
-
-  if (window.RipAuth.stats) {
-    try {
-      const stats = await window.RipAuth.stats();
-
-      if (statsMessages) {
-        statsMessages.textContent = String(stats.messageCount);
-      }
-
-      if (statsLastMessage) {
-        statsLastMessage.textContent = formatRelativeDate(stats.lastMessageAt);
-      }
-    } catch (error) {
-      console.error("Erreur stats:", error);
-    }
-  }
+  renderAccount();
+  await loadCasino();
 }
 
-function safeStat(value, fallback = 0) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
+document.addEventListener("rip-auth-change", (event) => {
+  state.user = event.detail || null;
+  renderAccount();
+});
 
-function statLabel(gameKey) {
-  const labels = {
-    aim: "Aim",
-    cipher: "Code",
-    dungeon: "Dungeon",
-    memory: "Memory",
-    platformer: "Platformer",
-    puzzle: "Puzzle",
-    reflex: "Reflex",
-    rpg: "RPG",
-    runner: "Runner",
-    snake: "Snake",
-    space: "Space",
-    tycoon: "Tycoon"
-  };
-  return labels[gameKey] || gameKey || "--";
-}
-
-function profileStatsFallback(user) {
-  return {
-    profile: user,
-    wallet: {
-      points: 0,
-      total_points: 0,
-      xp: 0,
-      level: 1,
-      streak: 0
-    },
-    stats: {
-      messages_count: 0,
-      games_count: 0,
-      inventory_count: 0,
-      achievements_unlocked: 0,
-      achievements_total: 0,
-      best_score: 0,
-      best_game: "--",
-      total_rewards: 0
-    },
-    recent_scores: []
-  };
-}
-
-function renderShareStats(statsData) {
-  const data = statsData || profileStatsFallback(window.RipAuth && window.RipAuth.currentUser());
-  const stats = data.stats || {};
-  const wallet = data.wallet || {};
-  const bestGame = statLabel(stats.best_game);
-
-  const values = {
-    "[data-share-level]": wallet.level || 1,
-    "[data-share-points]": wallet.points || 0,
-    "[data-share-xp]": wallet.xp || 0,
-    "[data-share-streak]": wallet.streak || 0,
-    "[data-share-messages]": stats.messages_count || 0,
-    "[data-share-games]": stats.games_count || 0,
-    "[data-share-inventory]": stats.inventory_count || 0,
-    "[data-share-achievements]": `${stats.achievements_unlocked || 0}/${stats.achievements_total || 0}`,
-    "[data-share-best-score]": stats.best_score || 0,
-    "[data-share-best-game]": bestGame,
-    "[data-share-total-rewards]": stats.total_rewards || 0
-  };
-
-  Object.entries(values).forEach(([selector, value]) => {
-    document.querySelectorAll(selector).forEach((element) => {
-      element.textContent = String(value);
-    });
-  });
-}
-
-function drawPixelCard(canvas, user, statsData) {
-  const context = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-  const data = statsData || profileStatsFallback(user);
-  const stats = data.stats || {};
-  const wallet = data.wallet || {};
-  const pseudo = user.pseudo || "Player";
-
-  context.imageSmoothingEnabled = false;
-  context.fillStyle = "#101014";
-  context.fillRect(0, 0, width, height);
-
-  for (let x = 0; x < width; x += 28) {
-    context.strokeStyle = "rgba(255,255,255,0.045)";
-    context.beginPath();
-    context.moveTo(x, 0);
-    context.lineTo(x, height);
-    context.stroke();
-  }
-
-  for (let y = 0; y < height; y += 28) {
-    context.strokeStyle = "rgba(255,255,255,0.045)";
-    context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-    context.stroke();
-  }
-
-  const gradient = context.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "rgba(255,59,189,0.32)");
-  gradient.addColorStop(0.5, "rgba(57,255,136,0.14)");
-  gradient.addColorStop(1, "rgba(255,220,94,0.26)");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
-
-  context.strokeStyle = "#050506";
-  context.lineWidth = 18;
-  context.strokeRect(9, 9, width - 18, height - 18);
-  context.strokeStyle = "#39ff88";
-  context.lineWidth = 5;
-  context.strokeRect(28, 28, width - 56, height - 56);
-
-  context.fillStyle = "#050506";
-  context.fillRect(50, 56, width - 100, 96);
-  context.fillStyle = "#ffdc5e";
-  context.font = "24px 'Press Start 2P', monospace";
-  context.fillText("RIP #TUFF PLAYER CARD", 74, 95);
-  context.fillStyle = "#c6c6d6";
-  context.font = "15px 'Press Start 2P', monospace";
-  context.fillText("CARTE DE STATS OFFICIELLE", 76, 130);
-
-  context.fillStyle = user.avatarColor || "#39ff88";
-  context.fillRect(70, 190, 132, 132);
-  context.fillStyle = "#050506";
-  context.fillRect(82, 202, 108, 108);
-  context.fillStyle = user.avatarColor || "#39ff88";
-  context.font = "68px 'Press Start 2P', monospace";
-  context.fillText(pseudo.slice(0, 1).toUpperCase(), 112, 286);
-
-  context.fillStyle = "#f8f8f2";
-  context.font = "34px 'Press Start 2P', monospace";
-  context.fillText(pseudo.slice(0, 18), 236, 218);
-  context.fillStyle = "#39ff88";
-  context.font = "18px 'Press Start 2P', monospace";
-  context.fillText((user.title || "Nouveau joueur").slice(0, 28), 238, 260);
-  context.fillStyle = "#ffdc5e";
-  context.fillText(`NIVEAU ${safeStat(wallet.level, 1)}  /  ${safeStat(wallet.points)} COINS`, 238, 304);
-
-  const cards = [
-    ["XP", safeStat(wallet.xp)],
-    ["STREAK", safeStat(wallet.streak)],
-    ["MESSAGES", safeStat(stats.messages_count)],
-    ["PARTIES", safeStat(stats.games_count)],
-    ["SUCCES", `${safeStat(stats.achievements_unlocked)}/${safeStat(stats.achievements_total)}`],
-    ["INVENTAIRE", safeStat(stats.inventory_count)],
-    ["BEST", safeStat(stats.best_score)],
-    ["JEU", statLabel(stats.best_game).toUpperCase().slice(0, 10)]
-  ];
-
-  cards.forEach(([label, value], index) => {
-    const col = index % 4;
-    const row = Math.floor(index / 4);
-    const x = 70 + col * 225;
-    const y = 380 + row * 126;
-    context.fillStyle = "#1c1c28";
-    context.fillRect(x, y, 194, 92);
-    context.strokeStyle = "#050506";
-    context.lineWidth = 5;
-    context.strokeRect(x, y, 194, 92);
-    context.fillStyle = "#ffdc5e";
-    context.font = "13px 'Press Start 2P', monospace";
-    context.fillText(label, x + 16, y + 32);
-    context.fillStyle = "#f8f8f2";
-    context.font = "22px 'Press Start 2P', monospace";
-    context.fillText(String(value).slice(0, 11), x + 16, y + 70);
-  });
-
-  context.fillStyle = "#050506";
-  context.fillRect(70, 660, width - 140, 68);
-  context.fillStyle = "#39ff88";
-  context.font = "16px 'Press Start 2P', monospace";
-  context.fillText(`TOTAL REWARDS: ${safeStat(stats.total_rewards)} RIP COINS`, 92, 704);
-  context.fillStyle = "#c6c6d6";
-  context.font = "12px 'Press Start 2P', monospace";
-  context.fillText(`rip-tuff.gg / ${new Date().toLocaleDateString("fr-FR")}`, 646, 704);
-}
-
-function shareText(user, statsData) {
-  const data = statsData || profileStatsFallback(user);
-  const stats = data.stats || {};
-  const wallet = data.wallet || {};
-
-  return [
-    `RIP #TUFF - ${user.pseudo || "Player"}`,
-    `Niveau ${safeStat(wallet.level, 1)} / ${safeStat(wallet.points)} coins / ${safeStat(wallet.xp)} XP`,
-    `Best score: ${safeStat(stats.best_score)} sur ${statLabel(stats.best_game)}`,
-    `Succes: ${safeStat(stats.achievements_unlocked)}/${safeStat(stats.achievements_total)} / Inventaire: ${safeStat(stats.inventory_count)}`,
-    `Messages: ${safeStat(stats.messages_count)} / Parties: ${safeStat(stats.games_count)} / Rewards: ${safeStat(stats.total_rewards)}`
-  ].join("\n");
-}
-
-async function bindProfileShareCard(user) {
-  const panel = document.querySelector("[data-profile-share]");
-  const canvas = document.querySelector("[data-share-card-canvas]");
-  const downloadButton = document.querySelector("[data-share-download]");
-  const copyButton = document.querySelector("[data-share-copy]");
-  const status = document.querySelector("[data-share-status]");
-
-  if (!panel || !canvas || !downloadButton || !user) {
-    return;
-  }
-
-  let statsData = profileStatsFallback(user);
-
-  try {
-    if (window.RipData && typeof window.RipData.getProfileCardStats === "function") {
-      statsData = await window.RipData.getProfileCardStats();
-    }
-  } catch (error) {
-    console.error("Stats carte profil:", error);
-    if (status) {
-      status.textContent = "Stats partielles : verifie supabase-chat.sql.";
-      status.dataset.state = "error";
-    }
-  }
-
-  renderShareStats(statsData);
-  if (document.fonts && document.fonts.ready) {
-    await document.fonts.ready.catch(() => null);
-  }
-  drawPixelCard(canvas, user, statsData);
-
-  downloadButton.addEventListener("click", () => {
-    drawPixelCard(canvas, user, statsData);
-    const link = document.createElement("a");
-    const cleanPseudo = String(user.pseudo || "player").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
-    link.download = `rip-tuff-card-${cleanPseudo}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  });
-
-  if (copyButton) {
-    copyButton.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(shareText(user, statsData));
-        if (status) {
-          status.textContent = "Stats copiees.";
-          status.dataset.state = "ok";
-        }
-      } catch (error) {
-        console.error("Copie stats profil:", error);
-        if (status) {
-          status.textContent = "Copie impossible dans ce navigateur.";
-          status.dataset.state = "error";
-        }
-      }
-    });
-  }
-
-  if (status && !status.textContent) {
-    status.textContent = "Carte prete.";
-    status.dataset.state = "ok";
-  }
-}
-
-function bindProfileForm() {
-  const form = document.querySelector("#profile-form");
-
-  if (!form || !window.RipAuth || !window.RipAuth.updateProfile) {
-    return;
-  }
-
-  const message = document.querySelector("#account-message");
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const submit = form.querySelector("button[type='submit']");
-    const data = Object.fromEntries(new FormData(form));
-    const avatarInput = form.elements.avatarFile;
-    const avatarFile = avatarInput && avatarInput.files ? avatarInput.files[0] : null;
-
-    submit.disabled = true;
-    setMessage(message, avatarFile && avatarFile.size ? "Upload de la photo..." : "Sauvegarde du profil...", null);
-
-    try {
-      if (avatarFile && avatarFile.size) {
-        data.avatarUrl = await window.RipAuth.uploadAvatar(avatarFile);
-        setMessage(message, "Sauvegarde du profil...", null);
-      }
-
-      const user = await window.RipAuth.updateProfile(data);
-      applyProfile(user);
-      document.dispatchEvent(new CustomEvent("rip-profile-saved", { detail: user }));
-      if (avatarInput) {
-        avatarInput.value = "";
-      }
-      setMessage(message, "Profil sauvegarde.", "success");
-    } catch (error) {
-      console.error("Erreur profil:", error);
-      setMessage(message, humanAuthError(error), "error");
-    } finally {
-      submit.disabled = false;
-    }
-  });
-}
-
-function bindLogoutButtons() {
-  document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-
-      if (window.RipAuth) {
-        await window.RipAuth.logout();
-      }
-
-      window.location.href = PAGE_ROUTES.login;
-    });
-  });
-}
-
-onReady(async () => {
-  const yearElement = document.querySelector("#year");
-
-  if (yearElement) {
-    yearElement.textContent = new Date().getFullYear();
-  }
-
-  document.addEventListener("rip-auth-change", updateAuthVisibility);
-
-  normalizeNavigation();
-  markCurrentNavigation();
-  bindNavigationMenu();
-  bindBugForm();
-  await updateAuthVisibility();
-  bindSignupForm();
-  bindLoginForm();
-  await bindAccountPage();
-  bindProfileForm();
-  bindLogoutButtons();
+initialize().catch((error) => {
+  console.error("Accueil casino:", error);
+  setStatus(errorMessage(error), "error");
 });

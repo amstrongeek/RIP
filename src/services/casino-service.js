@@ -21,6 +21,24 @@ export function getCasinoHealth() {
   return callCasinoRpc("casino_get_health");
 }
 
+export function claimWelcomeBonus() {
+  return callCasinoRpc("casino_claim_welcome_bonus");
+}
+
+export function playInstantGame(gameKey, wager, choice = {}) {
+  return callCasinoRpc("casino_play_instant", {
+    game_key_input: String(gameKey || ""),
+    wager_input: Math.trunc(Number(wager) || 0),
+    choice_input: choice
+  });
+}
+
+export function getRecentCasinoRounds(limit = 12) {
+  return callCasinoRpc("casino_get_recent_rounds", {
+    limit_count: Math.max(1, Math.min(40, Math.trunc(Number(limit) || 12)))
+  });
+}
+
 export function joinBlackjackTable(code) {
   return callCasinoRpc("casino_join_blackjack", {
     game_code_input: String(code || "").trim().toUpperCase()

@@ -22,14 +22,8 @@ const STORAGE_KEYS = {
 
 const NAV_ITEMS = [
   ["../home/home.html", "Accueil"],
-  ["../chat/chat.html", "Tchat"],
-  ["../dashboard/dashboard.html", "Dashboard"],
-  ["../arcade/arcade.html", "Arcade"],
   ["../casino/casino.html", "Casino"],
-  ["../shop/shop.html", "Boutique"],
-  ["../leaderboards/leaderboards.html", "Classements"],
-  ["../achievements/achievements.html", "Succes"],
-  ["../admin/admin.html", "Admin", "admin"]
+  ["https://discord.gg/9j5Nxuk2sH", "Discord", "external"]
 ];
 
 const SUITS = {
@@ -132,10 +126,12 @@ function casinoError(error, fallback = "Action impossible.") {
 }
 
 function setWallet(points) {
-  const element = query("[data-wallet-points]");
-  if (element) {
+  document.querySelectorAll("[data-wallet-points], [data-header-points]").forEach((element) => {
     element.textContent = formatPoints(points);
-  }
+  });
+  document.querySelectorAll("[data-header-euro]").forEach((element) => {
+    element.textContent = `~${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(points || 0) * 0.0001)}`;
+  });
 }
 
 async function refreshWallet() {
@@ -157,15 +153,6 @@ function routePath(value) {
 }
 
 async function buildNavigation() {
-  let isAdmin = false;
-  if (state.user && window.RipData && typeof window.RipData.isAdmin === "function") {
-    try {
-      isAdmin = await window.RipData.isAdmin();
-    } catch (error) {
-      isAdmin = false;
-    }
-  }
-
   const nav = query("[data-main-nav]");
   if (!nav) {
     return;
@@ -173,11 +160,12 @@ async function buildNavigation() {
 
   nav.replaceChildren();
   NAV_ITEMS.forEach(([href, label, access]) => {
-    if (access === "admin" && !isAdmin) {
-      return;
-    }
     const link = createElement("a", "", label);
     link.href = href;
+    if (access === "external") {
+      link.target = "_blank";
+      link.rel = "noreferrer";
+    }
     if (routePath(link.href) === routePath(window.location.href)) {
       link.setAttribute("aria-current", "page");
     }
@@ -275,6 +263,17 @@ function bindTabs() {
         panel.hidden = panel.dataset.gamePanel !== selected;
       });
     });
+  });
+}
+
+function selectRequestedGame() {
+  const requested = new URLSearchParams(window.location.search).get("game");
+  if (!['blackjack', 'ladder'].includes(requested)) return;
+  document.querySelectorAll("[data-casino-tab]").forEach((button) => {
+    button.setAttribute("aria-selected", String(button.dataset.casinoTab === requested));
+  });
+  document.querySelectorAll("[data-game-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.gamePanel !== requested;
   });
 }
 
@@ -752,6 +751,7 @@ async function initializeCasino() {
   query("#year").textContent = String(new Date().getFullYear());
   bindNavigation();
   bindTabs();
+  selectRequestedGame();
   bindBlackjack();
   bindLadder();
 

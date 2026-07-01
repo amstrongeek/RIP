@@ -4072,6 +4072,375 @@ grant execute on function public.casino_ladder_guess(uuid, text) to authenticate
 grant execute on function public.casino_cashout_ladder(uuid) to authenticated;
 grant execute on function public.casino_get_health() to authenticated;
 
+-- RIP #TUFF v8 : casino gratuit, bonus de bienvenue et jeux instantanes.
+create table if not exists public.casino_welcome_grants (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  granted_at timestamptz not null default now()
+);
+
+create table if not exists public.casino_instant_rounds (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  game_key text not null check (game_key in ('roulette', 'slots', 'baccarat', 'dice', 'coin', 'wheel', 'mines', 'poker')),
+  wager bigint not null check (wager >= 10),
+  choice jsonb not null default '{}'::jsonb,
+  outcome jsonb not null default '{}'::jsonb,
+  payout bigint not null default 0 check (payout >= 0),
+  created_at timestamptz not null default now()
+);
+
+alter table public.casino_welcome_grants enable row level security;
+alter table public.casino_instant_rounds enable row level security;
+
+create index if not exists casino_instant_rounds_user_idx
+on public.casino_instant_rounds (user_id, created_at desc);
+
+revoke all on public.casino_welcome_grants from anon, authenticated;
+revoke all on public.casino_instant_rounds from anon, authenticated;
+
+create or replace function public.casino_random_int(min_value integer, max_value integer)
+returns integer
+language plpgsql
+volatile
+set search_path = public
+as $$
+declare
+  random_bytes bytea;
+  random_value bigint;
+  value_range bigint;
+begin
+  if min_value > max_value then
+    raise exception 'casino_invalid_random_range';
+  end if;
+
+  random_bytes := gen_random_bytes(4);
+  random_value := get_byte(random_bytes, 0)::bigint * 16777216
+    + get_byte(random_bytes, 1)::bigint * 65536
+    + get_byte(random_bytes, 2)::bigint * 256
+    + get_byte(random_bytes, 3)::bigint;
+  value_range := max_value::bigint - min_value::bigint + 1;
+
+  return min_value + (random_value % value_range)::integer;
+end;
+$$;
+
+create or replace function public.casino_three_card_hand(cards_input text[])
+returns text
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  first_rank integer;
+  second_rank integer;
+  third_rank integer;
+  ranks integer[];
+  flush_hand boolean;
+  straight_hand boolean;
+  pair_count integer;
+begin
+  if coalesce(array_length(cards_input, 1), 0) <> 3 then
+    return 'high';
+  end if;
+
+  first_rank := public.casino_card_rank_value(cards_input[1]);
+  second_rank := public.casino_card_rank_value(cards_input[2]);
+  third_rank := public.casino_card_rank_value(cards_input[3]);
+
+  select array_agg(rank_value order by rank_value)
+  into ranks
+  from unnest(array[first_rank, second_rank, third_rank]) as rank_value;
+
+  flush_hand := right(cards_input[1], 1) = right(cards_input[2], 1)
+    and right(cards_input[2], 1) = right(cards_input[3], 1);
+  straight_hand := (ranks[2] = ranks[1] + 1 and ranks[3] = ranks[2] + 1)
+    or ranks = array[2, 3, 14];
+  pair_count := case
+    when first_rank = second_rank and second_rank = third_rank then 3
+    when first_rank = second_rank or first_rank = third_rank or second_rank = third_rank then 2
+    else 0
+  end;
+
+  if straight_hand and flush_hand then return 'straight_flush'; end if;
+  if pair_count = 3 then return 'three'; end if;
+  if straight_hand then return 'straight'; end if;
+  if flush_hand then return 'flush'; end if;
+  if pair_count = 2 then return 'pair'; end if;
+  return 'high';
+end;
+$$;
+
+create or replace function public.casino_claim_welcome_bonus()
+returns public.user_wallets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  wallet public.user_wallets;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  perform public.ensure_wallet(auth.uid());
+
+  insert into public.casino_welcome_grants (user_id)
+  values (auth.uid())
+  on conflict do nothing;
+
+  if found then
+    wallet := public.casino_wallet_delta(auth.uid(), 10000, 'casino:welcome', 'v1');
+  else
+    select * into wallet from public.user_wallets where user_id = auth.uid();
+  end if;
+
+  return wallet;
+end;
+$$;
+
+create or replace function public.casino_play_instant(
+  game_key_input text,
+  wager_input bigint,
+  choice_input jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_game text;
+  clean_wager bigint;
+  clean_choice jsonb;
+  payout_value bigint := 0;
+  outcome_value jsonb := '{}'::jsonb;
+  round_id uuid;
+  selected_value text;
+  result_number integer;
+  result_color text;
+  red_numbers integer[] := array[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+  symbols text[] := array['comet','moon','star','crown','seven','diamond'];
+  reel_one text;
+  reel_two text;
+  reel_three text;
+  multiplier integer := 0;
+  player_total integer;
+  banker_total integer;
+  die_one integer;
+  die_two integer;
+  sum_value integer;
+  wheel_values integer[] := array[0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,2,2,2,3,5];
+  wheel_index integer;
+  selected_cells integer[];
+  mine_cells integer[];
+  safe_pick boolean;
+  poker_cards text[];
+  poker_hand text;
+begin
+  if auth.uid() is null then
+    raise exception 'auth_required';
+  end if;
+
+  clean_game := lower(trim(coalesce(game_key_input, '')));
+  clean_wager := coalesce(wager_input, 0);
+  clean_choice := coalesce(choice_input, '{}'::jsonb);
+
+  if clean_game not in ('roulette', 'slots', 'baccarat', 'dice', 'coin', 'wheel', 'mines', 'poker') then
+    raise exception 'casino_invalid_game';
+  end if;
+  if clean_wager < 10 then
+    raise exception 'casino_minimum_bet';
+  end if;
+
+  perform public.casino_wallet_delta(auth.uid(), -clean_wager, 'casino:' || clean_game || ':bet', 'instant');
+
+  if clean_game = 'roulette' then
+    result_number := public.casino_random_int(0, 36);
+    result_color := case
+      when result_number = 0 then 'green'
+      when result_number = any(red_numbers) then 'red'
+      else 'black'
+    end;
+    selected_value := lower(trim(coalesce(clean_choice->>'value', '')));
+
+    if clean_choice->>'type' = 'number' then
+      if selected_value !~ '^[0-9]+$' then
+        raise exception 'casino_invalid_choice';
+      end if;
+      if selected_value::integer not between 0 and 36 then
+        raise exception 'casino_invalid_choice';
+      end if;
+      if selected_value::integer = result_number then payout_value := clean_wager * 36; end if;
+    elsif clean_choice->>'type' = 'color' and selected_value in ('red', 'black') then
+      if selected_value = result_color then payout_value := clean_wager * 2; end if;
+    else
+      raise exception 'casino_invalid_choice';
+    end if;
+
+    outcome_value := jsonb_build_object('number', result_number, 'color', result_color);
+
+  elsif clean_game = 'slots' then
+    reel_one := symbols[public.casino_random_int(1, array_length(symbols, 1))];
+    reel_two := symbols[public.casino_random_int(1, array_length(symbols, 1))];
+    reel_three := symbols[public.casino_random_int(1, array_length(symbols, 1))];
+
+    if reel_one = reel_two and reel_two = reel_three then
+      multiplier := case reel_one when 'diamond' then 20 when 'seven' then 10 when 'crown' then 7 else 5 end;
+      payout_value := clean_wager * multiplier;
+    elsif reel_one = reel_two or reel_one = reel_three or reel_two = reel_three then
+      payout_value := (clean_wager * 3) / 2;
+    end if;
+    outcome_value := jsonb_build_object('reels', to_jsonb(array[reel_one, reel_two, reel_three]), 'multiplier', multiplier);
+
+  elsif clean_game = 'baccarat' then
+    selected_value := lower(trim(coalesce(clean_choice->>'value', '')));
+    if selected_value not in ('player', 'banker', 'tie') then raise exception 'casino_invalid_choice'; end if;
+    player_total := (public.casino_random_int(0, 9) + public.casino_random_int(0, 9)) % 10;
+    banker_total := (public.casino_random_int(0, 9) + public.casino_random_int(0, 9)) % 10;
+    result_color := case when player_total > banker_total then 'player' when banker_total > player_total then 'banker' else 'tie' end;
+    if selected_value = result_color then
+      payout_value := case result_color when 'banker' then (clean_wager * 195) / 100 when 'tie' then clean_wager * 8 else clean_wager * 2 end;
+    end if;
+    outcome_value := jsonb_build_object('player', player_total, 'banker', banker_total, 'winner', result_color);
+
+  elsif clean_game = 'dice' then
+    selected_value := lower(trim(coalesce(clean_choice->>'value', '')));
+    if selected_value not in ('under', 'over', 'seven') then raise exception 'casino_invalid_choice'; end if;
+    die_one := public.casino_random_int(1, 6);
+    die_two := public.casino_random_int(1, 6);
+    sum_value := die_one + die_two;
+    if (selected_value = 'under' and sum_value < 7) or (selected_value = 'over' and sum_value > 7) then
+      payout_value := clean_wager * 2;
+    elsif selected_value = 'seven' and sum_value = 7 then
+      payout_value := clean_wager * 5;
+    end if;
+    outcome_value := jsonb_build_object('dice', to_jsonb(array[die_one, die_two]), 'sum', sum_value);
+
+  elsif clean_game = 'coin' then
+    selected_value := lower(trim(coalesce(clean_choice->>'value', '')));
+    if selected_value not in ('heads', 'tails') then raise exception 'casino_invalid_choice'; end if;
+    result_color := case when public.casino_random_int(0, 1) = 0 then 'heads' else 'tails' end;
+    if selected_value = result_color then payout_value := (clean_wager * 19) / 10; end if;
+    outcome_value := jsonb_build_object('side', result_color);
+
+  elsif clean_game = 'wheel' then
+    wheel_index := public.casino_random_int(1, array_length(wheel_values, 1));
+    multiplier := wheel_values[wheel_index];
+    payout_value := clean_wager * multiplier;
+    outcome_value := jsonb_build_object('segment', wheel_index, 'multiplier', multiplier);
+
+  elsif clean_game = 'mines' then
+    if jsonb_typeof(clean_choice->'cells') <> 'array' or jsonb_array_length(clean_choice->'cells') <> 3 then
+      raise exception 'casino_invalid_choice';
+    end if;
+    select array_agg(value::integer order by value::integer)
+    into selected_cells
+    from jsonb_array_elements_text(clean_choice->'cells') as value;
+    if array_length(selected_cells, 1) <> 3
+      or selected_cells[1] < 0 or selected_cells[3] > 15
+      or selected_cells[1] = selected_cells[2] or selected_cells[2] = selected_cells[3] then
+      raise exception 'casino_invalid_choice';
+    end if;
+    select array_agg(cell order by cell)
+    into mine_cells
+    from (
+      select cell
+      from generate_series(0, 15) as cell
+      order by gen_random_uuid()
+      limit 5
+    ) random_mines;
+    safe_pick := not (selected_cells && mine_cells);
+    if safe_pick then payout_value := clean_wager * 3; end if;
+    outcome_value := jsonb_build_object('selected', to_jsonb(selected_cells), 'mines', to_jsonb(mine_cells), 'safe', safe_pick);
+
+  elsif clean_game = 'poker' then
+    poker_cards := (public.casino_new_deck())[1:3];
+    poker_hand := public.casino_three_card_hand(poker_cards);
+    multiplier := case poker_hand
+      when 'pair' then 2 when 'flush' then 3 when 'straight' then 4
+      when 'three' then 15 when 'straight_flush' then 25 else 0
+    end;
+    payout_value := clean_wager * multiplier;
+    outcome_value := jsonb_build_object('cards', to_jsonb(poker_cards), 'hand', poker_hand, 'multiplier', multiplier);
+  end if;
+
+  insert into public.casino_instant_rounds (user_id, game_key, wager, choice, outcome, payout)
+  values (auth.uid(), clean_game, clean_wager, clean_choice, outcome_value, payout_value)
+  returning id into round_id;
+
+  if payout_value > 0 then
+    perform public.casino_wallet_delta(auth.uid(), payout_value, 'casino:' || clean_game || ':payout', round_id::text);
+  end if;
+
+  return jsonb_build_object(
+    'id', round_id,
+    'game_key', clean_game,
+    'wager', clean_wager,
+    'choice', clean_choice,
+    'outcome', outcome_value,
+    'payout', payout_value,
+    'profit', payout_value - clean_wager,
+    'won', payout_value > clean_wager,
+    'wallet', (select to_jsonb(wallet) from public.user_wallets wallet where wallet.user_id = auth.uid())
+  );
+end;
+$$;
+
+create or replace function public.casino_get_recent_rounds(limit_count integer default 12)
+returns table (
+  id uuid,
+  game_key text,
+  wager bigint,
+  outcome jsonb,
+  payout bigint,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select round.id, round.game_key, round.wager, round.outcome, round.payout, round.created_at
+  from public.casino_instant_rounds round
+  where round.user_id = auth.uid()
+  order by round.created_at desc
+  limit greatest(1, least(coalesce(limit_count, 12), 40));
+$$;
+
+create or replace function public.casino_get_health()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'ready',
+      to_regclass('public.casino_blackjack_games') is not null
+      and to_regclass('public.casino_ladder_games') is not null
+      and to_regclass('public.casino_instant_rounds') is not null
+      and to_regprocedure('public.casino_create_blackjack()') is not null
+      and to_regprocedure('public.casino_start_ladder(bigint)') is not null
+      and to_regprocedure('public.casino_play_instant(text,bigint,jsonb)') is not null,
+    'games', 10,
+    'welcome_bonus', 10000,
+    'instant_games', 8
+  );
+$$;
+
+revoke all on function public.casino_random_int(integer, integer) from public, anon, authenticated;
+revoke all on function public.casino_three_card_hand(text[]) from public, anon, authenticated;
+revoke all on function public.casino_claim_welcome_bonus() from public, anon;
+revoke all on function public.casino_play_instant(text, bigint, jsonb) from public, anon;
+revoke all on function public.casino_get_recent_rounds(integer) from public, anon;
+revoke all on function public.casino_get_health() from public, anon;
+
+grant execute on function public.casino_claim_welcome_bonus() to authenticated;
+grant execute on function public.casino_play_instant(text, bigint, jsonb) to authenticated;
+grant execute on function public.casino_get_recent_rounds(integer) to authenticated;
+grant execute on function public.casino_get_health() to authenticated;
+
 -- Pour activer le premier admin, remplace l'UUID puis execute une seule fois.
 -- Ce bloc ne bloque pas le script si l'utilisateur n'existe pas encore.
 do $$
