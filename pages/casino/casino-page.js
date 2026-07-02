@@ -1,6 +1,7 @@
 import {
   cashOutLadder,
   createBlackjackTable,
+  createPublicBlackjackTable,
   forfeitBlackjack,
   getBlackjackState,
   getCasinoHealth,
@@ -8,12 +9,15 @@ import {
   hitBlackjack,
   joinBlackjackTable,
   leaveBlackjackTable,
+  listPublicBlackjackTables,
+  quickMatchBlackjack,
   setBlackjackBet,
   standBlackjack,
   startBlackjack,
   startLadderGame,
   submitLadderGuess
 } from "../../src/services/casino-service.js";
+import { casinoAudio } from "../../src/services/casino-audio-service.js";
 
 const STORAGE_KEYS = {
   blackjack: "rip.casino.blackjack.game",
@@ -46,6 +50,7 @@ const state = {
   user: null,
   blackjack: null,
   ladder: null,
+  publicLobbies: [],
   busy: false,
   pollTimer: null
 };
@@ -438,6 +443,7 @@ async function runBlackjack(progressMessage, action) {
   }
   state.busy = true;
   setStatus(progressMessage, "loading");
+  casinoAudio.play(/Tirage|Distribution/i.test(progressMessage) ? "card" : "click");
   renderBlackjack();
   try {
     state.blackjack = await action();
@@ -446,6 +452,11 @@ async function runBlackjack(progressMessage, action) {
       setWallet(state.blackjack.wallet_points);
     }
     setStatus("Table synchronisee.", "ok");
+    const me = state.blackjack?.players?.find((player) => player.user_id === state.blackjack.my_user_id);
+    if (state.blackjack?.status === "done" && me?.result) {
+      const won = ["win", "blackjack"].includes(me.result);
+      casinoAudio.play(won ? "win" : "lose");
+    }
   } catch (error) {
     console.error("Casino blackjack:", error);
     const message = casinoError(error, "Action blackjack impossible.");
@@ -481,12 +492,56 @@ function resetBlackjack() {
   state.blackjack = null;
   window.localStorage.removeItem(STORAGE_KEYS.blackjack);
   renderBlackjack();
+  refreshPublicLobbies();
+}
+
+function renderPublicLobbies() {
+  const container = query("[data-blackjack-lobbies]");
+  if (!container) return;
+  container.replaceChildren();
+  if (!state.publicLobbies.length) {
+    container.append(createElement("p", "empty-lobbies", "Aucun salon ouvert. Le match rapide peut en creer un."));
+    return;
+  }
+
+  state.publicLobbies.forEach((room) => {
+    const item = createElement("article", "lobby-row");
+    const identity = createElement("div", "lobby-identity");
+    identity.append(
+      createElement("strong", "", room.host_name || "Joueur"),
+      createElement("span", "", `Table ${room.code}`)
+    );
+    const occupancy = createElement("span", "lobby-occupancy", `${room.player_count}/4`);
+    const join = actionButton("Rejoindre", () => runBlackjack("Connexion au salon public...", () => joinBlackjackTable(room.code)), "primary");
+    item.append(identity, occupancy, join);
+    container.append(item);
+  });
+}
+
+async function refreshPublicLobbies() {
+  if (!state.user || state.blackjack) return;
+  try {
+    state.publicLobbies = await listPublicBlackjackTables() || [];
+    renderPublicLobbies();
+  } catch (error) {
+    console.warn("Salons publics indisponibles:", error);
+  }
 }
 
 function bindBlackjack() {
   query("[data-blackjack-create]").addEventListener("click", () => {
     runBlackjack("Creation de la table...", createBlackjackTable);
   });
+
+  query("[data-blackjack-public-create]").addEventListener("click", () => {
+    runBlackjack("Ouverture du salon public...", createPublicBlackjackTable);
+  });
+
+  query("[data-blackjack-quick]").addEventListener("click", () => {
+    runBlackjack("Recherche de joueurs...", quickMatchBlackjack);
+  });
+
+  query("[data-blackjack-refresh]").addEventListener("click", refreshPublicLobbies);
 
   query("[data-blackjack-join-form]").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -517,6 +572,21 @@ function bindBlackjack() {
     } catch (error) {
       toast(`Code : ${state.blackjack.code}`);
     }
+  });
+}
+
+function bindAudio() {
+  const sfx = query("[data-sfx-toggle]");
+  const music = query("[data-music-toggle]");
+  sfx.setAttribute("aria-pressed", String(casinoAudio.sfxEnabled));
+  sfx.addEventListener("click", async () => {
+    const enabled = casinoAudio.setSfx(!casinoAudio.sfxEnabled);
+    sfx.setAttribute("aria-pressed", String(enabled));
+    if (enabled) await casinoAudio.play("click");
+  });
+  music.addEventListener("click", async () => {
+    const enabled = await casinoAudio.setMusic(!casinoAudio.musicEnabled);
+    music.setAttribute("aria-pressed", String(enabled));
   });
 }
 
@@ -743,8 +813,10 @@ function startPolling() {
     }
     if (tasks.length) {
       await Promise.allSettled(tasks);
+    } else if (!state.blackjack) {
+      await refreshPublicLobbies();
     }
-  }, 1800);
+  }, 2600);
 }
 
 async function initializeCasino() {
@@ -754,6 +826,7 @@ async function initializeCasino() {
   selectRequestedGame();
   bindBlackjack();
   bindLadder();
+  bindAudio();
 
   try {
     await window.RipAuth.ready();
@@ -783,6 +856,7 @@ async function initializeCasino() {
       throw new Error("casino_schema_incomplete");
     }
     await restoreGames();
+    await refreshPublicLobbies();
     startPolling();
     setStatus("Casino pret. Les tirages sont executes par Supabase.", "ok");
   } catch (error) {

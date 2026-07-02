@@ -138,6 +138,27 @@ input:focus-visible {
   margin-left: auto;
 }
 
+.audio-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.audio-controls button {
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 2px solid var(--black);
+  background: var(--panel-2);
+  box-shadow: 2px 2px 0 var(--black);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.4rem;
+}
+
+.audio-controls button[aria-pressed="true"] {
+  background: var(--green);
+  color: var(--black);
+}
+
 .wallet-chip,
 .account-button,
 .login-button {
@@ -448,10 +469,12 @@ h1 {
 }
 
 .game-card {
+  position: relative;
   display: grid;
   grid-template-rows: 132px auto auto 1fr auto;
   min-width: 0;
   min-height: 370px;
+  overflow: hidden;
   padding: 12px;
   border: 4px solid var(--black);
   background: var(--panel);
@@ -478,6 +501,144 @@ h1 {
   overflow: hidden;
   border: 3px solid var(--black);
   background: #2b1742;
+}
+
+.game-card::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -80%;
+  width: 36%;
+  height: 200%;
+  transform: rotate(18deg);
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  transition: left 420ms ease;
+}
+
+.game-card:hover::after {
+  left: 130%;
+}
+
+.game-card:hover .roulette-art,
+.game-card:hover .wheel-art {
+  animation: orbit-spin 900ms cubic-bezier(.2,.8,.2,1);
+}
+
+.game-card:hover .slots-art span {
+  animation: reel-pop 520ms ease both;
+}
+
+.game-card:hover .slots-art span:nth-child(2) { animation-delay: 80ms; }
+.game-card:hover .slots-art span:nth-child(3) { animation-delay: 160ms; }
+
+.game-card:hover .coin-art span {
+  animation: coin-flip 760ms ease;
+}
+
+.game-card:hover .blackjack-art span,
+.game-card:hover .poker-art span {
+  animation: card-fan 420ms ease both;
+}
+
+.game-card:hover .blackjack-art span:last-child,
+.game-card:hover .poker-art span:nth-child(2) { animation-delay: 70ms; }
+.game-card:hover .poker-art span:nth-child(3) { animation-delay: 140ms; }
+
+.live-feed {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 3px solid var(--black);
+  background: var(--black);
+}
+
+.live-feed > strong {
+  color: var(--red);
+  font-size: 0.48rem;
+  animation: live-pulse 1.2s steps(2) infinite;
+}
+
+.live-feed-track {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.live-feed-track span {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-left: 2px solid var(--green);
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.boost-console {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(0, 2fr);
+  gap: 18px;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 4px solid var(--black);
+  border-top-color: var(--cyan);
+  background: #111522;
+  box-shadow: var(--shadow);
+}
+
+.boost-heading h3 {
+  margin: 8px 0;
+  font-size: 0.72rem;
+}
+
+.boost-heading > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.75rem;
+}
+
+.boost-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.boost-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 8px;
+  border: 3px solid var(--black);
+  background: var(--panel-2);
+  box-shadow: 3px 3px 0 var(--black);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.boost-card:disabled { cursor: not-allowed; opacity: 0.55; }
+.boost-card[data-active="true"] { border-color: var(--green); opacity: 1; animation: armed-pulse 1s steps(2) infinite; }
+.boost-card strong { overflow: hidden; font-size: 0.46rem; text-overflow: ellipsis; }
+.boost-card small { color: var(--yellow); font-size: 0.42rem; }
+
+.boost-badge {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 2px solid var(--black);
+  background: var(--cyan);
+  color: var(--black);
+  font-size: 0.4rem;
 }
 
 .game-art::before {
@@ -711,6 +872,70 @@ h1 {
   font-size: 0.8rem;
 }
 
+.game-stage {
+  position: relative;
+  display: grid;
+  min-height: 142px;
+  place-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 18px;
+  overflow: hidden;
+  border: 3px solid var(--black);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(157, 78, 221, 0.34), transparent 48%),
+    #09070f;
+}
+
+.game-stage::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(transparent, rgba(104, 216, 255, 0.18), transparent 28%);
+  animation: orbit-spin 5s linear infinite;
+}
+
+.stage-core {
+  z-index: 1;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--yellow);
+  font-size: 1.05rem;
+  text-shadow: 4px 4px 0 var(--black);
+}
+
+.stage-tile {
+  display: inline-grid;
+  min-width: 62px;
+  height: 68px;
+  place-items: center;
+  padding: 5px;
+  border: 3px solid var(--black);
+  background: var(--ink);
+  box-shadow: 4px 4px 0 var(--black);
+  color: var(--black);
+  font-size: 0.64rem;
+  animation: tile-reveal 420ms cubic-bezier(.2,.9,.2,1) both;
+}
+
+.game-stage[data-state="spinning"] .stage-tile {
+  animation: reel-spin 260ms linear infinite;
+}
+
+.game-stage[data-state="reveal"] {
+  border-color: var(--green);
+  animation: stage-impact 420ms ease;
+}
+
+.game-stage > span:last-child {
+  z-index: 1;
+  color: var(--muted);
+  font-size: 0.4rem;
+}
+
 .game-form {
   display: grid;
   gap: 16px;
@@ -748,6 +973,67 @@ h1 {
   cursor: pointer;
   font-size: 0.5rem;
 }
+
+.wager-presets {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wager-presets button {
+  min-height: 36px;
+  border: 2px solid var(--black);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.4rem;
+}
+
+.wager-presets button:hover { background: var(--cyan); color: var(--black); }
+
+.bet-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-left: 3px solid var(--pink);
+  background: var(--black);
+  font-size: 0.44rem;
+}
+
+.bet-summary strong { color: var(--yellow); }
+.result-boost { color: var(--cyan) !important; }
+.result-award { color: var(--green) !important; }
+
+.celebration-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.celebration-layer span {
+  position: absolute;
+  top: -24px;
+  left: var(--x);
+  width: 10px;
+  height: 18px;
+  background: var(--color);
+  animation: confetti-fall 1.5s var(--delay) cubic-bezier(.15,.7,.3,1) forwards;
+}
+
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+@keyframes reel-pop { 50% { transform: translateY(-12px) scale(1.08); } }
+@keyframes coin-flip { 50% { transform: rotateY(540deg) scale(1.12); } }
+@keyframes card-fan { from { transform: translateY(26px) rotate(8deg); opacity: 0; } }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+@keyframes armed-pulse { 50% { background: #173b2c; } }
+@keyframes reel-spin { 50% { transform: translateY(8px); filter: blur(2px); } }
+@keyframes tile-reveal { from { transform: scale(.45) rotateX(80deg); opacity: 0; } }
+@keyframes stage-impact { 35% { transform: scale(1.018); filter: brightness(1.35); } }
+@keyframes confetti-fall { to { transform: translateY(105vh) rotate(760deg); opacity: 0; } }
 
 .choice-zone {
   display: grid;
@@ -919,6 +1205,10 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .boost-console {
+    grid-template-columns: 1fr;
+  }
+
   .community-band {
     grid-template-columns: 86px minmax(0, 1fr);
   }
@@ -950,6 +1240,13 @@ footer {
 
   .header-account {
     gap: 6px;
+  }
+
+  .audio-controls button {
+    width: 32px;
+    padding: 4px;
+    overflow: hidden;
+    font-size: 0.32rem;
   }
 
   .wallet-chip {
@@ -998,6 +1295,14 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .boost-list {
+    grid-template-columns: 1fr;
+  }
+
+  .wager-presets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .game-card {
     min-height: 345px;
   }
@@ -1028,7 +1333,10 @@ footer {
     scroll-behavior: auto;
   }
 
-  .game-card {
-    transition: none;
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

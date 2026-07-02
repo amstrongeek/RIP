@@ -6,7 +6,7 @@
   <meta name="description" content="Casino RIP TUFF : blackjack multijoueur et defi de cartes securises par Supabase.">
   <title>RIP Casino | Tables avancees</title>
   <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
-  <link rel="stylesheet" href="casino.css?v=20260701-casino-rebuild1">
+  <link rel="stylesheet" href="casino.css?v=20260702-public1">
 </head>
 <body class="casino-body" data-platform-page="casino">
   <header class="site-header">
@@ -15,6 +15,10 @@
       <span>RIP CASINO</span>
     </a>
     <div class="header-actions">
+      <div class="casino-audio-controls" aria-label="Audio du casino">
+        <button type="button" data-sfx-toggle aria-pressed="true" title="Effets sonores">SFX</button>
+        <button type="button" data-music-toggle aria-pressed="false" title="Musique">MUSIC</button>
+      </div>
       <a class="header-login" href="../login/login.html" data-auth-visible="guest">Connexion</a>
       <div class="header-wallet" data-auth-visible="user" hidden>
         <strong data-header-points>0</strong>
@@ -67,7 +71,7 @@
         <header class="workspace-header">
           <div>
             <p class="eyebrow">1 a 4 joueurs</p>
-            <h2>Blackjack prive</h2>
+            <h2>Blackjack multijoueur</h2>
           </div>
           <div class="rule-strip" aria-label="Regles principales">
             <span>Mise min. 10</span>
@@ -78,15 +82,42 @@
         </header>
 
         <div class="blackjack-entry" data-blackjack-entry>
-          <button class="button primary large" type="button" data-blackjack-create>Creer une table</button>
-          <span class="entry-separator">ou</span>
-          <form class="join-form" data-blackjack-join-form>
-            <label for="blackjack-code">Code prive</label>
-            <div class="input-action">
-              <input id="blackjack-code" name="code" inputmode="text" maxlength="6" autocomplete="off" placeholder="ABC123" required>
-              <button class="button secondary" type="submit">Rejoindre</button>
+          <div class="matchmaking-panel">
+            <div>
+              <p class="eyebrow">Joueurs en ligne</p>
+              <h3>Entre dans une table ouverte</h3>
+              <p>Le match rapide rejoint un salon disponible ou en cree un automatiquement.</p>
             </div>
-          </form>
+            <div class="matchmaking-actions">
+              <button class="button primary large" type="button" data-blackjack-quick>Match rapide</button>
+              <button class="button secondary" type="button" data-blackjack-public-create>Creer un salon public</button>
+            </div>
+          </div>
+
+          <section class="public-lobbies" aria-labelledby="public-lobbies-title">
+            <header>
+              <div>
+                <span class="live-dot" aria-hidden="true"></span>
+                <h3 id="public-lobbies-title">Salons publics</h3>
+              </div>
+              <button class="icon-command" type="button" data-blackjack-refresh>Actualiser</button>
+            </header>
+            <div class="lobby-list" data-blackjack-lobbies>
+              <p class="empty-lobbies">Recherche de tables...</p>
+            </div>
+          </section>
+
+          <div class="private-entry">
+            <button class="button secondary" type="button" data-blackjack-create>Creer une table privee</button>
+            <span class="entry-separator">ou</span>
+            <form class="join-form" data-blackjack-join-form>
+              <label for="blackjack-code">Rejoindre avec un code</label>
+              <div class="input-action">
+                <input id="blackjack-code" name="code" inputmode="text" maxlength="6" autocomplete="off" placeholder="ABC123" required>
+                <button class="button secondary" type="submit">Rejoindre</button>
+              </div>
+            </form>
+          </div>
         </div>
 
         <div class="blackjack-table" data-blackjack-table hidden>
@@ -188,6 +219,6 @@
   <script src="../../shared/supabase/public-config.js?v=20260701-casino-rebuild1"></script>
   <script src="../../shared/supabase/data-service.js?v=20260701-casino-rebuild1"></script>
   <script src="../../shared/supabase/auth-session.js?v=20260701-casino-rebuild1"></script>
-  <script type="module" src="casino-page.js?v=20260701-casino-rebuild1"></script>
+  <script type="module" src="casino-page.js?v=20260702-public1"></script>
 </body>
 </html>

@@ -1,8 +1,12 @@
 import {
+  activateCasinoBoost,
   claimWelcomeBonus,
+  getCasinoBoosts,
   getCasinoHealth,
+  getCasinoLiveFeed,
   playInstantGame
 } from "../../src/services/casino-service.js";
+import { casinoAudio } from "../../src/services/casino-audio-service.js";
 
 const EURO_PER_POINT = 0.0001;
 const ADVANCED_GAMES = new Set(["blackjack", "ladder"]);
@@ -17,6 +21,7 @@ const SYMBOLS = {
 
 const GAMES = {
   roulette: {
+    maxMultiplier: 36,
     title: "Cosmic Roulette",
     kicker: "Roulette serveur",
     description: "Rouge ou noir paie x2. Un numero exact paie x36.",
@@ -26,11 +31,13 @@ const GAMES = {
     ]
   },
   slots: {
+    maxMultiplier: 20,
     title: "Nebula Slots",
     kicker: "Trois rouleaux",
     description: "Deux symboles identiques paient x1.5. Trois symboles peuvent atteindre x20."
   },
   baccarat: {
+    maxMultiplier: 8,
     title: "Mini Baccarat",
     kicker: "Le plus proche de neuf",
     description: "Choisis le joueur, la banque ou une egalite.",
@@ -41,6 +48,7 @@ const GAMES = {
     ]
   },
   dice: {
+    maxMultiplier: 5,
     title: "Star Dice",
     kicker: "Deux des",
     description: "Parie sur une somme inferieure a sept, superieure a sept, ou sept exact.",
@@ -51,6 +59,7 @@ const GAMES = {
     ]
   },
   coin: {
+    maxMultiplier: 1.9,
     title: "Quantum Coin",
     kicker: "Pile ou face",
     description: "Un lancer serveur instantane. Le bon cote paie x1.9.",
@@ -60,16 +69,19 @@ const GAMES = {
     ]
   },
   wheel: {
+    maxMultiplier: 5,
     title: "Lucky Orbit",
     kicker: "Roue cosmique",
     description: "Vingt segments et un multiplicateur pouvant atteindre x5."
   },
   mines: {
+    maxMultiplier: 3,
     title: "Asteroid Mines",
     kicker: "Trois cases a choisir",
     description: "Selectionne exactement trois cases. Si aucune ne contient une mine, tu gagnes x3."
   },
   poker: {
+    maxMultiplier: 25,
     title: "Three Card Poker",
     kicker: "Main automatique",
     description: "Trois cartes sans remise. Paire, couleur, suite, brelan ou suite couleur."
@@ -83,7 +95,15 @@ const state = {
   selectedValue: "",
   selectedType: "",
   selectedMines: new Set(),
-  busy: false
+  busy: false,
+  boosts: null,
+  lastWager: Number(window.localStorage.getItem("rip.casino.last-wager") || 10)
+};
+
+const BOOSTS = {
+  shield: { name: "Bouclier", badge: "50%", description: "Rembourse la moitie de la prochaine mise perdante." },
+  turbo: { name: "Turbo", badge: "+10%", description: "Ajoute 10% au prochain retour gagnant." },
+  free_bet: { name: "Mise libre", badge: "FREE", description: "Rembourse la mise du prochain tirage." }
 };
 
 function query(selector) {
@@ -124,12 +144,14 @@ function toast(message, type = "success") {
 
 function errorMessage(error) {
   const message = String(error && (error.message || error.details || error.code) || "");
-  if (/casino_get_health|casino_play_instant|casino_claim_welcome_bonus|PGRST202|Could not find the function/i.test(message)) {
+  if (/casino_get_health|casino_play_boosted|casino_claim_welcome_bonus|PGRST202|Could not find the function/i.test(message)) {
     return "La migration Casino doit etre appliquee dans Supabase.";
   }
   if (/not_enough_points/i.test(message)) return "Tu n'as pas assez de points pour cette mise.";
   if (/casino_minimum_bet/i.test(message)) return "La mise minimum est de 10 points.";
   if (/casino_invalid_choice/i.test(message)) return "Choix incomplet ou invalide.";
+  if (/casino_boost_already_active/i.test(message)) return "Un boost est deja arme.";
+  if (/casino_boost_empty/i.test(message)) return "Ce boost est epuise.";
   if (/Failed to fetch|NetworkError/i.test(message)) return "Supabase est momentanement inaccessible.";
   return message ? `Action impossible : ${message.slice(0, 120)}` : "Action impossible.";
 }
@@ -168,6 +190,62 @@ function renderAccount() {
   }
 }
 
+function renderBoosts(data = state.boosts) {
+  state.boosts = data;
+  const list = query("[data-boost-list]");
+  if (!list || !data) return;
+  const inventory = data.inventory || {};
+  const progress = data.progress || {};
+  list.replaceChildren();
+
+  Object.entries(BOOSTS).forEach(([key, config]) => {
+    const button = createElement("button", "boost-card");
+    button.type = "button";
+    button.dataset.boost = key;
+    button.dataset.active = String(progress.active_boost === key);
+    button.disabled = Boolean(progress.active_boost) || Number(inventory[key] || 0) < 1;
+    button.title = config.description;
+    button.append(
+      createElement("span", "boost-badge", config.badge),
+      createElement("strong", "", config.name),
+      createElement("small", "", progress.active_boost === key ? "ARME" : `x${Number(inventory[key] || 0)}`)
+    );
+    button.addEventListener("click", () => activateBoost(key));
+    list.append(button);
+  });
+
+  const modulo = Number(progress.rounds_played || 0) % 8;
+  const nextReward = modulo === 0 ? 8 : 8 - modulo;
+  query("[data-boost-progress]").textContent = `${formatPoints(progress.rounds_played)} parties · serie ${formatPoints(progress.win_streak)} · boost dans ${nextReward}`;
+}
+
+async function activateBoost(key) {
+  try {
+    renderBoosts(await activateCasinoBoost(key));
+    await casinoAudio.play("boost");
+    toast(`${BOOSTS[key].name} arme pour le prochain tirage eligible.`);
+  } catch (error) {
+    toast(errorMessage(error), "error");
+  }
+}
+
+function renderLiveFeed(rounds) {
+  const track = query("[data-live-feed]");
+  if (!track) return;
+  track.replaceChildren();
+  if (!rounds || !rounds.length) {
+    track.append(createElement("span", "", "Aucun gain public pour le moment."));
+    return;
+  }
+  rounds.forEach((round) => {
+    track.append(createElement(
+      "span",
+      "live-win",
+      `${round.pseudo} · ${GAMES[round.game_key]?.title || round.game_key} · +${formatPoints(Number(round.payout) - Number(round.wager))}`
+    ));
+  });
+}
+
 async function loadCasino() {
   if (!state.user) {
     setStatus("Connecte-toi pour recevoir 10 000 points gratuits et jouer.", "ok");
@@ -186,7 +264,10 @@ async function loadCasino() {
     if (Number(walletAfter.points || 0) - Number(walletBefore.points || 0) >= 10000) {
       toast("Bonus de bienvenue : +10 000 points.");
     }
-    setStatus("Casino pret · 10 jeux · points virtuels uniquement.", "ok");
+    const [boosts, feed] = await Promise.all([getCasinoBoosts(), getCasinoLiveFeed(12)]);
+    renderBoosts(boosts);
+    renderLiveFeed(feed);
+    setStatus("Casino pret · 10 jeux · matchmaking public · points virtuels.", "ok");
   } catch (error) {
     console.error("Initialisation casino:", error);
     setStatus(errorMessage(error), "error");
@@ -226,6 +307,7 @@ function choiceButton(choice) {
     state.selectedValue = choice.value;
     state.selectedType = state.gameKey === "roulette" ? "color" : "value";
     renderChoices();
+    renderPotential();
   });
   return button;
 }
@@ -255,6 +337,7 @@ function renderChoices() {
         zone.querySelectorAll(".choice-button").forEach((button) => {
           button.dataset.selected = "false";
         });
+        renderPotential();
       }
     });
     zone.append(numberInput);
@@ -286,6 +369,75 @@ function renderChoices() {
   }
 }
 
+function selectedMultiplier() {
+  if (state.gameKey === "roulette") return state.selectedType === "number" ? 36 : 2;
+  if (state.gameKey === "baccarat") return { player: 2, banker: 1.95, tie: 8 }[state.selectedValue] || 2;
+  if (state.gameKey === "dice") return state.selectedValue === "seven" ? 5 : 2;
+  return GAMES[state.gameKey]?.maxMultiplier || 1;
+}
+
+function renderPotential() {
+  const wager = Math.max(0, Number(query("#game-wager")?.value || 0));
+  const output = query("[data-potential-payout]");
+  if (output) output.textContent = `${formatPoints(Math.floor(wager * selectedMultiplier()))} points`;
+}
+
+function setWager(value) {
+  const input = query("#game-wager");
+  if (!input) return;
+  const wallet = Number(state.wallet?.points || 0);
+  input.value = String(Math.max(10, Math.min(Math.trunc(Number(value) || 10), Math.max(10, wallet))));
+  renderPotential();
+}
+
+function setStage(mode, result = null) {
+  const stage = query("[data-game-stage]");
+  const core = query("[data-stage-core]");
+  const label = query("[data-stage-label]");
+  if (!stage || !core || !label) return;
+  stage.dataset.game = state.gameKey;
+  stage.dataset.state = mode;
+  core.replaceChildren();
+
+  if (mode === "idle") {
+    core.textContent = GAMES[state.gameKey]?.title?.slice(0, 3).toUpperCase() || "RIP";
+    label.textContent = "Configure ta mise";
+    return;
+  }
+  if (mode === "spinning") {
+    core.append(...["?", "?", "?"].map((value) => createElement("span", "stage-tile", value)));
+    label.textContent = "Le serveur effectue le tirage...";
+    return;
+  }
+
+  const outcome = result?.outcome || {};
+  let values = ["RIP"];
+  if (result?.game_key === "roulette") values = [String(outcome.number)];
+  if (result?.game_key === "slots") values = (outcome.reels || []).map((item) => (SYMBOLS[item] || item).slice(0, 3));
+  if (result?.game_key === "baccarat") values = [`P${outcome.player}`, `B${outcome.banker}`];
+  if (result?.game_key === "dice") values = (outcome.dice || []).map(String);
+  if (result?.game_key === "coin") values = [outcome.side === "heads" ? "FACE" : "PILE"];
+  if (result?.game_key === "wheel") values = [`x${outcome.multiplier}`];
+  if (result?.game_key === "mines") values = [outcome.safe ? "SAFE" : "MINE"];
+  if (result?.game_key === "poker") values = outcome.cards || [];
+  core.append(...values.map((value) => createElement("span", "stage-tile", value)));
+  label.textContent = Number(result?.payout || 0) > Number(result?.wager || 0) ? "GAIN CONFIRME" : "TIRAGE TERMINE";
+}
+
+function celebrate() {
+  const layer = createElement("div", "celebration-layer");
+  layer.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < 32; index += 1) {
+    const particle = createElement("span", "");
+    particle.style.setProperty("--x", `${(index * 47) % 100}%`);
+    particle.style.setProperty("--delay", `${(index % 8) * 45}ms`);
+    particle.style.setProperty("--color", ["#39ff88", "#ff3cb4", "#ffe54d", "#57dfff"][index % 4]);
+    layer.append(particle);
+  }
+  document.body.append(layer);
+  window.setTimeout(() => layer.remove(), 1800);
+}
+
 function openGame(gameKey) {
   if (ADVANCED_GAMES.has(gameKey)) {
     const tab = gameKey === "ladder" ? "ladder" : "blackjack";
@@ -312,6 +464,8 @@ function openGame(gameKey) {
   query("[data-game-form]").hidden = !state.user;
   query("[data-dialog-login]").hidden = Boolean(state.user);
   renderChoices();
+  setWager(state.lastWager);
+  setStage("idle");
 
   const dialog = query("[data-game-dialog]");
   dialog.showModal();
@@ -363,6 +517,16 @@ function renderResult(result) {
     createElement("strong", "", title),
     createElement("p", "", resultText(result))
   );
+  if (result.boost_used) {
+    panel.append(createElement("p", "result-boost", `${BOOSTS[result.boost_used]?.name || "Boost"} · +${formatPoints(result.boost_bonus)} points`));
+  }
+  if (result.boost_awarded) {
+    panel.append(createElement("p", "result-award", `Nouveau boost : ${BOOSTS[result.boost_awarded]?.name || result.boost_awarded}`));
+  }
+}
+
+function wait(duration) {
+  return new Promise((resolve) => window.setTimeout(resolve, duration));
 }
 
 async function submitGame(event) {
@@ -388,17 +552,32 @@ async function submitGame(event) {
   }
 
   state.busy = true;
+  state.lastWager = wager;
+  window.localStorage.setItem("rip.casino.last-wager", String(wager));
   const button = query("[data-play-button]");
   button.disabled = true;
   button.textContent = "Tirage...";
+  setStage("spinning");
+  casinoAudio.play("spin");
 
   try {
-    const result = await playInstantGame(state.gameKey, wager, choice);
+    const [result] = await Promise.all([
+      playInstantGame(state.gameKey, wager, choice),
+      wait(state.gameKey === "slots" ? 1150 : 850)
+    ]);
+    setStage("reveal", result);
     renderResult(result);
     renderWallet(result.wallet);
+    const won = Number(result.payout || 0) > Number(result.wager || 0);
+    casinoAudio.play(won ? "win" : "lose");
+    if (won) celebrate();
+    const [boosts, feed] = await Promise.all([getCasinoBoosts(), getCasinoLiveFeed(12)]);
+    renderBoosts(boosts);
+    renderLiveFeed(feed);
   } catch (error) {
     console.error("Jeu casino:", error);
     toast(errorMessage(error), "error");
+    setStage("idle");
   } finally {
     state.busy = false;
     button.disabled = false;
@@ -419,8 +598,31 @@ function bindGames() {
     document.body.classList.remove("dialog-open");
   });
   query("[data-game-form]").addEventListener("submit", submitGame);
+  query("#game-wager").addEventListener("input", renderPotential);
   query("[data-wager-all]").addEventListener("click", () => {
-    query("#game-wager").value = String(Math.max(10, Number(state.wallet && state.wallet.points || 10)));
+    setWager(Number(state.wallet?.points || 10));
+  });
+  document.querySelectorAll("[data-wager-value]").forEach((button) => {
+    button.addEventListener("click", () => setWager(button.dataset.wagerValue));
+  });
+  document.querySelectorAll("[data-wager-ratio]").forEach((button) => {
+    button.addEventListener("click", () => setWager(Number(state.wallet?.points || 0) * Number(button.dataset.wagerRatio)));
+  });
+  query("[data-wager-repeat]").addEventListener("click", () => setWager(state.lastWager));
+}
+
+function bindAudio() {
+  const sfx = query("[data-sfx-toggle]");
+  const music = query("[data-music-toggle]");
+  sfx.setAttribute("aria-pressed", String(casinoAudio.sfxEnabled));
+  sfx.addEventListener("click", async () => {
+    const enabled = casinoAudio.setSfx(!casinoAudio.sfxEnabled);
+    sfx.setAttribute("aria-pressed", String(enabled));
+    if (enabled) await casinoAudio.play("click");
+  });
+  music.addEventListener("click", async () => {
+    const enabled = await casinoAudio.setMusic(!casinoAudio.musicEnabled);
+    music.setAttribute("aria-pressed", String(enabled));
   });
 }
 
@@ -428,6 +630,7 @@ async function initialize() {
   query("#year").textContent = String(new Date().getFullYear());
   bindAccountMenu();
   bindGames();
+  bindAudio();
 
   try {
     await window.RipAuth.ready();

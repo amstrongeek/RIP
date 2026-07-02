@@ -6,7 +6,7 @@ Le site public contient maintenant uniquement l'accueil Casino, la connexion, l'
 
 1. Ouvre le projet dans le dashboard Supabase.
 2. Ouvre `SQL Editor` puis `New query`.
-3. Copie tout le fichier `supabase-chat.sql`.
+3. Copie tout le fichier `supabase-chat.sql` (la migration v9 inclut boosts, progression et salons publics).
 4. Execute la requete avec `Run`.
 5. Recharge le site avec `Ctrl + F5`.
 

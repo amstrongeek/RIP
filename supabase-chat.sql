@@ -4441,6 +4441,378 @@ grant execute on function public.casino_play_instant(text, bigint, jsonb) to aut
 grant execute on function public.casino_get_recent_rounds(integer) to authenticated;
 grant execute on function public.casino_get_health() to authenticated;
 
+-- RIP #TUFF v9 : boosts serveur, progression et salons Blackjack publics.
+alter table public.casino_blackjack_games
+  add column if not exists visibility text not null default 'private';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'casino_blackjack_games_visibility_check'
+  ) then
+    alter table public.casino_blackjack_games
+      add constraint casino_blackjack_games_visibility_check
+      check (visibility in ('private', 'public'));
+  end if;
+end;
+$$;
+
+create index if not exists casino_blackjack_public_lobby_idx
+  on public.casino_blackjack_games (visibility, status, updated_at desc);
+
+create table if not exists public.casino_player_progress (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  rounds_played integer not null default 0 check (rounds_played >= 0),
+  wins integer not null default 0 check (wins >= 0),
+  win_streak integer not null default 0 check (win_streak >= 0),
+  best_streak integer not null default 0 check (best_streak >= 0),
+  active_boost text check (active_boost is null or active_boost in ('shield', 'turbo', 'free_bet')),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.casino_boost_inventory (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  boost_key text not null check (boost_key in ('shield', 'turbo', 'free_bet')),
+  quantity integer not null default 0 check (quantity >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, boost_key)
+);
+
+create table if not exists public.casino_boost_starter_grants (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  granted_at timestamptz not null default now()
+);
+
+alter table public.casino_player_progress enable row level security;
+alter table public.casino_boost_inventory enable row level security;
+alter table public.casino_boost_starter_grants enable row level security;
+revoke all on public.casino_player_progress from anon, authenticated;
+revoke all on public.casino_boost_inventory from anon, authenticated;
+revoke all on public.casino_boost_starter_grants from anon, authenticated;
+
+create or replace function public.casino_ensure_boosts()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+
+  insert into public.casino_player_progress (user_id)
+  values (auth.uid())
+  on conflict do nothing;
+
+  insert into public.casino_boost_starter_grants (user_id)
+  values (auth.uid())
+  on conflict do nothing;
+
+  if found then
+    insert into public.casino_boost_inventory (user_id, boost_key, quantity)
+    values
+      (auth.uid(), 'shield', 1),
+      (auth.uid(), 'turbo', 1),
+      (auth.uid(), 'free_bet', 1)
+    on conflict (user_id, boost_key) do update
+    set quantity = public.casino_boost_inventory.quantity + excluded.quantity,
+        updated_at = now();
+  end if;
+end;
+$$;
+
+create or replace function public.casino_get_boosts()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inventory jsonb;
+  progress jsonb;
+begin
+  perform public.casino_ensure_boosts();
+
+  select coalesce(jsonb_object_agg(boost_key, quantity), '{}'::jsonb)
+  into inventory
+  from public.casino_boost_inventory
+  where user_id = auth.uid();
+
+  select to_jsonb(p) - 'user_id'
+  into progress
+  from public.casino_player_progress p
+  where p.user_id = auth.uid();
+
+  return jsonb_build_object('inventory', inventory, 'progress', coalesce(progress, '{}'::jsonb));
+end;
+$$;
+
+create or replace function public.casino_activate_boost(boost_key_input text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_boost text := lower(trim(coalesce(boost_key_input, '')));
+  current_boost text;
+begin
+  if clean_boost not in ('shield', 'turbo', 'free_bet') then
+    raise exception 'casino_invalid_boost';
+  end if;
+
+  perform public.casino_ensure_boosts();
+
+  select active_boost into current_boost
+  from public.casino_player_progress
+  where user_id = auth.uid()
+  for update;
+
+  if current_boost is not null then raise exception 'casino_boost_already_active'; end if;
+
+  update public.casino_boost_inventory
+  set quantity = quantity - 1, updated_at = now()
+  where user_id = auth.uid() and boost_key = clean_boost and quantity > 0;
+
+  if not found then raise exception 'casino_boost_empty'; end if;
+
+  update public.casino_player_progress
+  set active_boost = clean_boost, updated_at = now()
+  where user_id = auth.uid();
+
+  return public.casino_get_boosts();
+end;
+$$;
+
+create or replace function public.casino_play_boosted(
+  game_key_input text,
+  wager_input bigint,
+  choice_input jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  round_result jsonb;
+  progress_row public.casino_player_progress;
+  boost_used text;
+  boost_bonus bigint := 0;
+  base_payout bigint;
+  clean_wager bigint;
+  did_win boolean;
+  awarded_boost text;
+begin
+  perform public.casino_ensure_boosts();
+
+  select * into progress_row
+  from public.casino_player_progress
+  where user_id = auth.uid()
+  for update;
+
+  round_result := public.casino_play_instant(game_key_input, wager_input, choice_input);
+  clean_wager := (round_result->>'wager')::bigint;
+  base_payout := (round_result->>'payout')::bigint;
+  did_win := coalesce((round_result->>'won')::boolean, false);
+
+  if progress_row.active_boost = 'free_bet' then
+    boost_used := 'free_bet';
+    boost_bonus := clean_wager;
+  elsif progress_row.active_boost = 'turbo' and did_win then
+    boost_used := 'turbo';
+    boost_bonus := greatest(1, base_payout / 10);
+  elsif progress_row.active_boost = 'shield' and base_payout < clean_wager then
+    boost_used := 'shield';
+    boost_bonus := greatest(1, clean_wager / 2);
+  end if;
+
+  if boost_bonus > 0 then
+    perform public.casino_wallet_delta(
+      auth.uid(), boost_bonus, 'casino:boost:' || boost_used, round_result->>'id'
+    );
+    update public.casino_instant_rounds
+    set payout = payout + boost_bonus
+    where id = (round_result->>'id')::uuid and user_id = auth.uid();
+  end if;
+
+  update public.casino_player_progress
+  set rounds_played = rounds_played + 1,
+      wins = wins + case when did_win then 1 else 0 end,
+      win_streak = case when did_win then win_streak + 1 else 0 end,
+      best_streak = greatest(best_streak, case when did_win then win_streak + 1 else 0 end),
+      active_boost = case when boost_used is not null then null else active_boost end,
+      updated_at = now()
+  where user_id = auth.uid()
+  returning * into progress_row;
+
+  if progress_row.rounds_played % 8 = 0 then
+    awarded_boost := (array['shield', 'turbo', 'free_bet'])[public.casino_random_int(1, 3)];
+    insert into public.casino_boost_inventory (user_id, boost_key, quantity)
+    values (auth.uid(), awarded_boost, 1)
+    on conflict (user_id, boost_key) do update
+    set quantity = public.casino_boost_inventory.quantity + 1, updated_at = now();
+  end if;
+
+  return round_result || jsonb_build_object(
+    'payout', base_payout + boost_bonus,
+    'profit', base_payout + boost_bonus - clean_wager,
+    'boost_used', boost_used,
+    'boost_bonus', boost_bonus,
+    'boost_awarded', awarded_boost,
+    'progress', to_jsonb(progress_row) - 'user_id',
+    'wallet', (select to_jsonb(w) from public.user_wallets w where w.user_id = auth.uid())
+  );
+end;
+$$;
+
+create or replace function public.casino_create_public_blackjack()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  game public.casino_blackjack_games;
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+  perform public.ensure_wallet(auth.uid());
+
+  insert into public.casino_blackjack_games (host_id, visibility)
+  values (auth.uid(), 'public')
+  returning * into game;
+
+  insert into public.casino_blackjack_players (game_id, user_id, seat)
+  values (game.id, auth.uid(), 1);
+
+  return public.casino_get_blackjack_state(game.id) || jsonb_build_object('visibility', 'public');
+end;
+$$;
+
+create or replace function public.casino_list_public_blackjack()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_agg(row_data order by row_data->>'created_at'), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'id', g.id,
+      'code', g.code,
+      'host_name', coalesce(p.pseudo, 'Joueur'),
+      'player_count', count(bp.user_id),
+      'created_at', g.created_at
+    ) as row_data
+    from public.casino_blackjack_games g
+    left join public.casino_blackjack_players bp on bp.game_id = g.id
+    left join public.profiles p on p.id = g.host_id
+    where auth.uid() is not null
+      and g.visibility = 'public'
+      and g.status = 'waiting'
+      and g.updated_at > now() - interval '30 minutes'
+    group by g.id, p.pseudo
+    having count(bp.user_id) < 4
+    order by g.created_at
+    limit 20
+  ) rooms;
+$$;
+
+create or replace function public.casino_quick_match_blackjack()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  room_code text;
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+
+  select g.code into room_code
+  from public.casino_blackjack_games g
+  where g.visibility = 'public'
+    and g.status = 'waiting'
+    and g.updated_at > now() - interval '30 minutes'
+    and not exists (
+      select 1 from public.casino_blackjack_players mine
+      where mine.game_id = g.id and mine.user_id = auth.uid()
+    )
+    and (select count(*) from public.casino_blackjack_players members where members.game_id = g.id) < 4
+  order by g.created_at
+  for update skip locked
+  limit 1;
+
+  if room_code is null then
+    return public.casino_create_public_blackjack();
+  end if;
+
+  return public.casino_join_blackjack(room_code) || jsonb_build_object('visibility', 'public');
+end;
+$$;
+
+create or replace function public.casino_get_live_feed(limit_count integer default 10)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_agg(to_jsonb(feed) order by feed.created_at desc), '[]'::jsonb)
+  from (
+    select coalesce(p.pseudo, 'Joueur') as pseudo,
+           r.game_key,
+           r.wager,
+           r.payout,
+           r.created_at
+    from public.casino_instant_rounds r
+    left join public.profiles p on p.id = r.user_id
+    where auth.uid() is not null and r.payout > r.wager
+    order by r.created_at desc
+    limit greatest(1, least(coalesce(limit_count, 10), 20))
+  ) feed;
+$$;
+
+create or replace function public.casino_get_health()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'ready',
+      to_regclass('public.casino_blackjack_games') is not null
+      and to_regclass('public.casino_instant_rounds') is not null
+      and to_regclass('public.casino_player_progress') is not null
+      and to_regprocedure('public.casino_play_boosted(text,bigint,jsonb)') is not null
+      and to_regprocedure('public.casino_quick_match_blackjack()') is not null,
+    'games', 10,
+    'welcome_bonus', 10000,
+    'instant_games', 8,
+    'boosts', 3,
+    'public_matchmaking', true
+  );
+$$;
+
+revoke all on function public.casino_ensure_boosts() from public, anon, authenticated;
+revoke all on function public.casino_get_boosts() from public, anon;
+revoke all on function public.casino_activate_boost(text) from public, anon;
+revoke all on function public.casino_play_boosted(text, bigint, jsonb) from public, anon;
+revoke all on function public.casino_create_public_blackjack() from public, anon;
+revoke all on function public.casino_list_public_blackjack() from public, anon;
+revoke all on function public.casino_quick_match_blackjack() from public, anon;
+revoke all on function public.casino_get_live_feed(integer) from public, anon;
+revoke all on function public.casino_play_instant(text, bigint, jsonb) from authenticated;
+
+grant execute on function public.casino_get_boosts() to authenticated;
+grant execute on function public.casino_activate_boost(text) to authenticated;
+grant execute on function public.casino_play_boosted(text, bigint, jsonb) to authenticated;
+grant execute on function public.casino_create_public_blackjack() to authenticated;
+grant execute on function public.casino_list_public_blackjack() to authenticated;
+grant execute on function public.casino_quick_match_blackjack() to authenticated;
+grant execute on function public.casino_get_live_feed(integer) to authenticated;
+
 -- Pour activer le premier admin, remplace l'UUID puis execute une seule fois.
 -- Ce bloc ne bloque pas le script si l'utilisateur n'existe pas encore.
 do $$

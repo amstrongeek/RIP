@@ -17,6 +17,18 @@ export function createBlackjackTable() {
   return callCasinoRpc("casino_create_blackjack");
 }
 
+export function createPublicBlackjackTable() {
+  return callCasinoRpc("casino_create_public_blackjack");
+}
+
+export function quickMatchBlackjack() {
+  return callCasinoRpc("casino_quick_match_blackjack");
+}
+
+export function listPublicBlackjackTables() {
+  return callCasinoRpc("casino_list_public_blackjack");
+}
+
 export function getCasinoHealth() {
   return callCasinoRpc("casino_get_health");
 }
@@ -26,10 +38,26 @@ export function claimWelcomeBonus() {
 }
 
 export function playInstantGame(gameKey, wager, choice = {}) {
-  return callCasinoRpc("casino_play_instant", {
+  return callCasinoRpc("casino_play_boosted", {
     game_key_input: String(gameKey || ""),
     wager_input: Math.trunc(Number(wager) || 0),
     choice_input: choice
+  });
+}
+
+export function getCasinoBoosts() {
+  return callCasinoRpc("casino_get_boosts");
+}
+
+export function activateCasinoBoost(boostKey) {
+  return callCasinoRpc("casino_activate_boost", {
+    boost_key_input: String(boostKey || "")
+  });
+}
+
+export function getCasinoLiveFeed(limit = 10) {
+  return callCasinoRpc("casino_get_live_feed", {
+    limit_count: Math.max(1, Math.min(20, Math.trunc(Number(limit) || 10)))
   });
 }
 
