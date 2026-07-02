@@ -5,7 +5,7 @@
   "workers_dev": true,
   "preview_urls": true,
   "build": {
-    "command": "npm run build"
+    "command": "npm run build && node scripts/ensure-cloudflare-subdomain.mjs"
   },
   "assets": {
     "directory": "./dist",
