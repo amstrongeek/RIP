@@ -18,6 +18,7 @@ import {
   submitLadderGuess
 } from "../../src/services/casino-service.js";
 import { casinoAudio } from "../../src/services/casino-audio-service.js?v=20260702-audio2";
+import { initializeAds } from "../../src/services/ad-service.js?v=20260702-ads1";
 
 const STORAGE_KEYS = {
   blackjack: "rip.casino.blackjack.game",
@@ -869,6 +870,7 @@ async function initializeCasino() {
   bindBlackjack();
   bindLadder();
   bindAudio();
+  initializeAds();
 
   try {
     await window.RipAuth.ready();

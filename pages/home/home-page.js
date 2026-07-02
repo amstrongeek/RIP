@@ -7,6 +7,7 @@ import {
   playInstantGame
 } from "../../src/services/casino-service.js";
 import { casinoAudio } from "../../src/services/casino-audio-service.js?v=20260702-audio2";
+import { initializeAds } from "../../src/services/ad-service.js?v=20260702-ads1";
 
 const EURO_PER_POINT = 0.0001;
 const ADVANCED_GAMES = new Set(["blackjack", "ladder"]);
@@ -681,6 +682,7 @@ async function initialize() {
   bindAccountMenu();
   bindGames();
   bindAudio();
+  initializeAds();
 
   try {
     await window.RipAuth.ready();
