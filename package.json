@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "npm run build",
     "build": "node scripts/build-static.mjs",
     "deploy": "npm run build && wrangler deploy"
   },
