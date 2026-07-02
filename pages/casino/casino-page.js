@@ -17,7 +17,7 @@ import {
   startLadderGame,
   submitLadderGuess
 } from "../../src/services/casino-service.js";
-import { casinoAudio } from "../../src/services/casino-audio-service.js";
+import { casinoAudio } from "../../src/services/casino-audio-service.js?v=20260702-audio2";
 
 const STORAGE_KEYS = {
   blackjack: "rip.casino.blackjack.game",
@@ -260,6 +260,7 @@ function renderHeaderAccount() {
 function bindTabs() {
   document.querySelectorAll("[data-casino-tab]").forEach((button) => {
     button.addEventListener("click", () => {
+      casinoAudio.play("click");
       const selected = button.dataset.casinoTab;
       document.querySelectorAll("[data-casino-tab]").forEach((candidate) => {
         candidate.setAttribute("aria-selected", String(candidate === button));
@@ -576,8 +577,36 @@ function bindBlackjack() {
 }
 
 function bindAudio() {
+  const menu = query("[data-audio-menu]");
+  const panel = query("[data-audio-panel]");
   const sfx = query("[data-sfx-toggle]");
   const music = query("[data-music-toggle]");
+  const volume = query("[data-volume-control]");
+  const output = query("[data-volume-output]");
+
+  const close = () => {
+    panel.hidden = true;
+    menu.setAttribute("aria-expanded", "false");
+  };
+  const renderVolume = () => {
+    const percent = Math.round(casinoAudio.volume * 100);
+    volume.value = String(percent);
+    output.textContent = `${percent}%`;
+  };
+
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    menu.setAttribute("aria-expanded", String(open));
+    if (open) casinoAudio.play("click");
+  });
+  panel.addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", close);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+  });
+
   sfx.setAttribute("aria-pressed", String(casinoAudio.sfxEnabled));
   sfx.addEventListener("click", async () => {
     const enabled = casinoAudio.setSfx(!casinoAudio.sfxEnabled);
@@ -588,6 +617,13 @@ function bindAudio() {
     const enabled = await casinoAudio.setMusic(!casinoAudio.musicEnabled);
     music.setAttribute("aria-pressed", String(enabled));
   });
+  volume.addEventListener("input", () => {
+    const percent = Math.max(0, Math.min(100, Number(volume.value) || 0));
+    casinoAudio.setVolume(percent / 100);
+    output.textContent = `${percent}%`;
+  });
+  volume.addEventListener("change", () => casinoAudio.play("click"));
+  renderVolume();
 }
 
 function ladderRoundData(round) {
@@ -710,6 +746,7 @@ async function runLadder(progressMessage, action) {
   }
   state.busy = true;
   setStatus(progressMessage, "loading");
+  casinoAudio.play("card");
   renderLadder();
   try {
     state.ladder = await action();
@@ -718,6 +755,11 @@ async function runLadder(progressMessage, action) {
       setWallet(state.ladder.wallet_points);
     }
     setStatus("Tirage valide par le serveur.", "ok");
+    if (["won", "cashed_out"].includes(state.ladder?.status)) {
+      casinoAudio.play("win");
+    } else if (state.ladder?.status === "lost") {
+      casinoAudio.play("lose");
+    }
   } catch (error) {
     console.error("Casino ladder:", error);
     const message = casinoError(error, "Tirage impossible.");

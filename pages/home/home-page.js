@@ -6,7 +6,7 @@ import {
   getCasinoLiveFeed,
   playInstantGame
 } from "../../src/services/casino-service.js";
-import { casinoAudio } from "../../src/services/casino-audio-service.js";
+import { casinoAudio } from "../../src/services/casino-audio-service.js?v=20260702-audio2";
 
 const EURO_PER_POINT = 0.0001;
 const ADVANCED_GAMES = new Set(["blackjack", "ladder"]);
@@ -304,6 +304,7 @@ function choiceButton(choice) {
   button.dataset.value = choice.value;
   button.dataset.selected = String(state.selectedValue === choice.value && state.selectedType !== "number");
   button.addEventListener("click", () => {
+    casinoAudio.play("click");
     state.selectedValue = choice.value;
     state.selectedType = state.gameKey === "roulette" ? "color" : "value";
     renderChoices();
@@ -350,6 +351,7 @@ function renderChoices() {
       button.type = "button";
       button.dataset.selected = String(state.selectedMines.has(cell));
       button.addEventListener("click", () => {
+        casinoAudio.play("click");
         if (state.selectedMines.has(cell)) {
           state.selectedMines.delete(cell);
         } else if (state.selectedMines.size < 3) {
@@ -558,7 +560,7 @@ async function submitGame(event) {
   button.disabled = true;
   button.textContent = "Tirage...";
   setStage("spinning");
-  casinoAudio.play("spin");
+  casinoAudio.play(state.gameKey);
 
   try {
     const [result] = await Promise.all([
@@ -587,7 +589,10 @@ async function submitGame(event) {
 
 function bindGames() {
   document.querySelectorAll("[data-open-game]").forEach((button) => {
-    button.addEventListener("click", () => openGame(button.dataset.openGame));
+    button.addEventListener("click", () => {
+      casinoAudio.play("click");
+      openGame(button.dataset.openGame);
+    });
   });
 
   query("[data-dialog-close]").addEventListener("click", closeDialog);
@@ -600,20 +605,58 @@ function bindGames() {
   query("[data-game-form]").addEventListener("submit", submitGame);
   query("#game-wager").addEventListener("input", renderPotential);
   query("[data-wager-all]").addEventListener("click", () => {
+    casinoAudio.play("bet");
     setWager(Number(state.wallet?.points || 10));
   });
   document.querySelectorAll("[data-wager-value]").forEach((button) => {
-    button.addEventListener("click", () => setWager(button.dataset.wagerValue));
+    button.addEventListener("click", () => {
+      casinoAudio.play("bet");
+      setWager(button.dataset.wagerValue);
+    });
   });
   document.querySelectorAll("[data-wager-ratio]").forEach((button) => {
-    button.addEventListener("click", () => setWager(Number(state.wallet?.points || 0) * Number(button.dataset.wagerRatio)));
+    button.addEventListener("click", () => {
+      casinoAudio.play("bet");
+      setWager(Number(state.wallet?.points || 0) * Number(button.dataset.wagerRatio));
+    });
   });
-  query("[data-wager-repeat]").addEventListener("click", () => setWager(state.lastWager));
+  query("[data-wager-repeat]").addEventListener("click", () => {
+    casinoAudio.play("bet");
+    setWager(state.lastWager);
+  });
 }
 
 function bindAudio() {
+  const menu = query("[data-audio-menu]");
+  const panel = query("[data-audio-panel]");
   const sfx = query("[data-sfx-toggle]");
   const music = query("[data-music-toggle]");
+  const volume = query("[data-volume-control]");
+  const output = query("[data-volume-output]");
+
+  const close = () => {
+    panel.hidden = true;
+    menu.setAttribute("aria-expanded", "false");
+  };
+  const renderVolume = () => {
+    const percent = Math.round(casinoAudio.volume * 100);
+    volume.value = String(percent);
+    output.textContent = `${percent}%`;
+  };
+
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    menu.setAttribute("aria-expanded", String(open));
+    if (open) casinoAudio.play("click");
+  });
+  panel.addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", close);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+  });
+
   sfx.setAttribute("aria-pressed", String(casinoAudio.sfxEnabled));
   sfx.addEventListener("click", async () => {
     const enabled = casinoAudio.setSfx(!casinoAudio.sfxEnabled);
@@ -624,6 +667,13 @@ function bindAudio() {
     const enabled = await casinoAudio.setMusic(!casinoAudio.musicEnabled);
     music.setAttribute("aria-pressed", String(enabled));
   });
+  volume.addEventListener("input", () => {
+    const percent = Math.max(0, Math.min(100, Number(volume.value) || 0));
+    casinoAudio.setVolume(percent / 100);
+    output.textContent = `${percent}%`;
+  });
+  volume.addEventListener("change", () => casinoAudio.play("click"));
+  renderVolume();
 }
 
 async function initialize() {

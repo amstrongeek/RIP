@@ -6,7 +6,7 @@
   <meta name="description" content="Casino RIP TUFF : blackjack multijoueur et defi de cartes securises par Supabase.">
   <title>RIP Casino | Tables avancees</title>
   <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
-  <link rel="stylesheet" href="casino.css?v=20260702-public1">
+  <link rel="stylesheet" href="casino.css?v=20260702-audio2">
 </head>
 <body class="casino-body" data-platform-page="casino">
   <header class="site-header">
@@ -16,8 +16,18 @@
     </a>
     <div class="header-actions">
       <div class="casino-audio-controls" aria-label="Audio du casino">
-        <button type="button" data-sfx-toggle aria-pressed="true" title="Effets sonores">SFX</button>
-        <button type="button" data-music-toggle aria-pressed="false" title="Musique">MUSIC</button>
+        <button class="audio-menu-button" type="button" data-audio-menu aria-expanded="false" title="Reglages audio">SON</button>
+        <div class="audio-panel" data-audio-panel hidden>
+          <div class="audio-switches">
+            <button type="button" data-sfx-toggle aria-pressed="true">Effets</button>
+            <button type="button" data-music-toggle aria-pressed="false">Musique</button>
+          </div>
+          <label for="casino-audio-volume">
+            <span>Volume</span>
+            <output data-volume-output>78%</output>
+          </label>
+          <input id="casino-audio-volume" data-volume-control type="range" min="0" max="100" step="1" value="78">
+        </div>
       </div>
       <a class="header-login" href="../login/login.html" data-auth-visible="guest">Connexion</a>
       <div class="header-wallet" data-auth-visible="user" hidden>
@@ -219,6 +229,6 @@
   <script src="../../shared/supabase/public-config.js?v=20260701-casino-rebuild1"></script>
   <script src="../../shared/supabase/data-service.js?v=20260701-casino-rebuild1"></script>
   <script src="../../shared/supabase/auth-session.js?v=20260701-casino-rebuild1"></script>
-  <script type="module" src="casino-page.js?v=20260702-public1"></script>
+  <script type="module" src="casino-page.js?v=20260702-audio2"></script>
 </body>
 </html>
