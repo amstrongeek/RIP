@@ -17,7 +17,7 @@
 
   function destination() {
     const next = new URLSearchParams(window.location.search).get("next");
-    return next && /^\.\.\/(home|casino)\/[a-z-]+\.html(?:\?.*)?$/.test(next)
+    return next && /^\.\.\/(home|casino|clicker)\/[a-z-]+\.html(?:\?.*)?$/.test(next)
       ? next
       : "../home/home.html";
   }
@@ -45,4 +45,8 @@
   window.RipAuth.ready().then(() => {
     if (window.RipAuth.currentUser()) window.location.href = destination();
   }).catch(() => null);
+
+  import("../../src/services/ad-service.js?v=20260702-clicker1")
+    .then(({ initializeAds }) => initializeAds())
+    .catch((error) => console.error("Publicites:", error));
 }());

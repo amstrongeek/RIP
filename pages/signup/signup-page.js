@@ -49,4 +49,8 @@
       button.disabled = false;
     }
   });
+
+  import("../../src/services/ad-service.js?v=20260702-clicker1")
+    .then(({ initializeAds }) => initializeAds())
+    .catch((error) => console.error("Publicites:", error));
 }());

@@ -177,11 +177,14 @@ input:focus-visible {
   gap: 7px;
 }
 
-.casino-audio-controls .audio-panel label {
+.casino-audio-controls .audio-volume-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.casino-audio-controls .audio-panel label {
   color: var(--muted);
   font-size: 0.42rem;
 }
@@ -1179,6 +1182,59 @@ input {
   min-height: 320px;
 }
 
+.ad-band-banner {
+  min-height: 104px;
+  margin: 18px 0 28px;
+}
+
+.casino-ad-grid {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 190px;
+  align-items: center;
+  gap: 20px;
+  margin-top: 36px;
+}
+
+.casino-ad-grid .ad-band {
+  width: 100%;
+  margin: 0;
+}
+
+.ad-band-tower {
+  min-height: 640px;
+}
+
+.ad-band-skyscraper {
+  min-height: 340px;
+}
+
+.casino-ad-message {
+  display: grid;
+  justify-items: start;
+  gap: 13px;
+  padding: 28px;
+  border-left: 4px solid var(--yellow);
+  background: var(--surface);
+  box-shadow: 6px 6px 0 var(--black);
+}
+
+.casino-ad-message > strong {
+  color: var(--yellow);
+  font-size: 0.7rem;
+}
+
+.casino-ad-message p {
+  margin: 0;
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+}
+
+.casino-sponsor-action {
+  width: min(280px, 100%);
+  justify-items: start;
+}
+
 .ad-label {
   color: var(--muted);
   font-size: 0.4rem;
@@ -1353,6 +1409,15 @@ input {
   .fairness-band {
     grid-template-columns: 1fr;
   }
+
+  .casino-ad-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .casino-ad-message {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1442,8 +1507,22 @@ input {
     display: grid;
   }
 
+  .casino-ad-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .casino-ad-message,
+  .casino-ad-grid .ad-band {
+    grid-column: 1;
+  }
+
   .ad-band {
     padding-inline: 0;
+  }
+
+  .ad-band-banner {
+    width: 100vw;
+    margin-left: calc((100% - 100vw) / 2);
   }
 
   .ad-consent {

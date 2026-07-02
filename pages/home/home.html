@@ -6,7 +6,7 @@
   <meta name="description" content="RIP Casino, dix jeux gratuits avec des points virtuels et aucune mise d'argent reel.">
   <title>RIP Casino | Jeux gratuits</title>
   <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
-  <link rel="stylesheet" href="home.css?v=20260702-ads1">
+  <link rel="stylesheet" href="home.css?v=20260702-clicker1">
 </head>
 <body>
   <header class="site-header">
@@ -17,25 +17,26 @@
 
     <nav class="header-nav" aria-label="Navigation principale">
       <a href="#games">Jeux</a>
+      <a href="../clicker/clicker.html">Clicker</a>
       <a href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Discord</a>
     </nav>
 
     <div class="header-account">
-      <div class="audio-controls" aria-label="Audio du casino">
+      <div class="audio-controls" role="group" aria-label="Audio du casino">
         <button class="audio-menu-button" type="button" data-audio-menu aria-expanded="false" title="Reglages audio">SON</button>
         <div class="audio-panel" data-audio-panel hidden>
           <div class="audio-switches">
             <button type="button" data-sfx-toggle aria-pressed="true">Effets</button>
             <button type="button" data-music-toggle aria-pressed="false">Musique</button>
           </div>
-          <label for="home-audio-volume">
-            <span>Volume</span>
-            <output data-volume-output>78%</output>
-          </label>
+          <div class="audio-volume-row">
+            <label for="home-audio-volume">Volume</label>
+            <output for="home-audio-volume" data-volume-output>78%</output>
+          </div>
           <input id="home-audio-volume" data-volume-control type="range" min="0" max="100" step="1" value="78">
         </div>
       </div>
-      <div class="wallet-chip" data-auth-only hidden aria-label="Solde virtuel">
+      <div class="wallet-chip" role="group" data-auth-only hidden aria-label="Solde virtuel">
         <span class="wallet-orb" aria-hidden="true"></span>
         <span>
           <strong data-wallet-points>0</strong>
@@ -58,7 +59,7 @@
   <main>
     <section class="space-hero" aria-labelledby="hero-title">
       <div class="hero-content">
-        <p class="eyebrow">10 jeux · 0 euro depense</p>
+        <p class="eyebrow">10 jeux + 1 clicker · 0 euro depense</p>
         <h1 id="hero-title">RIP CASINO</h1>
         <p class="hero-copy">Mise des points virtuels, vise les multiplicateurs et garde le controle. Aucun depot, aucun achat, aucun retrait.</p>
         <div class="hero-actions">
@@ -67,7 +68,7 @@
         </div>
       </div>
 
-      <div class="hero-jackpot" aria-label="Bonus gratuit">
+      <div class="hero-jackpot" role="group" aria-label="Bonus gratuit">
         <span>Bonus de bienvenue</span>
         <strong>10 000</strong>
         <small>points offerts une fois</small>
@@ -88,12 +89,12 @@
         <div class="floor-status" data-casino-status role="status">Initialisation...</div>
       </header>
 
-      <div class="live-feed" data-auth-only hidden aria-label="Gains recents">
+      <section class="live-feed" data-auth-only hidden aria-label="Gains recents">
         <strong>LIVE</strong>
         <div class="live-feed-track" data-live-feed>
           <span>Les prochains gains apparaitront ici.</span>
         </div>
-      </div>
+      </section>
 
       <section class="boost-console" data-auth-only hidden aria-labelledby="boost-title">
         <div class="boost-heading">
@@ -107,6 +108,14 @@
       </section>
 
       <div class="game-grid" data-game-grid>
+        <article class="game-card featured" data-game-card="clicker">
+          <div class="game-art clicker-art" aria-hidden="true"><span>+</span><span>PTS</span></div>
+          <div class="game-meta"><span>Generateur gratuit</span><strong>UP</strong></div>
+          <h3>Pulse Forge</h3>
+          <p>Genere des points et ameliore ton reacteur persistant.</p>
+          <button type="button" data-open-game="clicker">Ouvrir</button>
+        </article>
+
         <article class="game-card featured" data-game-card="blackjack">
           <div class="game-art blackjack-art" aria-hidden="true"><span>A</span><span>K</span></div>
           <div class="game-meta"><span>Table privee</span><strong>x2.5</strong></div>
@@ -189,6 +198,23 @@
       </div>
     </section>
 
+    <section class="ad-showcase" aria-label="Partenaires publicitaires">
+      <div class="ad-band ad-band-tower" data-ad-section hidden>
+        <span class="ad-label">PUBLICITE</span>
+        <div class="ad-slot" data-ad-slot="tower"></div>
+      </div>
+      <div class="ad-showcase-copy">
+        <p class="eyebrow">Partenaires</p>
+        <strong>Les annonces financent RIP Casino.</strong>
+        <p>Elles ne donnent aucun point. Pulse Forge reste le generateur gratuit du site.</p>
+        <div class="ad-slot ad-sponsor-action" data-ad-slot="onclick"></div>
+      </div>
+      <div class="ad-band ad-band-skyscraper" data-ad-section hidden>
+        <span class="ad-label">PUBLICITE</span>
+        <div class="ad-slot" data-ad-slot="skyscraper"></div>
+      </div>
+    </section>
+
     <section class="ad-band ad-band-native" data-ad-section hidden aria-label="Publicite partenaire">
       <span class="ad-label">CONTENU PARTENAIRE</span>
       <div class="ad-slot" data-ad-slot="native"></div>
@@ -231,7 +257,7 @@
         <input id="game-wager" name="wager" type="number" min="10" step="1" value="10" inputmode="numeric" required>
         <button type="button" data-wager-all>Max</button>
       </div>
-      <div class="wager-presets" aria-label="Mises rapides">
+      <div class="wager-presets" role="group" aria-label="Mises rapides">
         <button type="button" data-wager-value="10">10</button>
         <button type="button" data-wager-value="50">50</button>
         <button type="button" data-wager-value="100">100</button>
@@ -261,6 +287,6 @@
   <script src="../../shared/supabase/public-config.js?v=20260701-casino-rebuild3"></script>
   <script src="../../shared/supabase/data-service.js?v=20260701-casino-rebuild3"></script>
   <script src="../../shared/supabase/auth-session.js?v=20260701-casino-rebuild3"></script>
-  <script type="module" src="home-page.js?v=20260702-ads1"></script>
+  <script type="module" src="home-page.js?v=20260702-clicker1"></script>
 </body>
 </html>

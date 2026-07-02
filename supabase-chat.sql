@@ -2921,6 +2921,318 @@ begin
 end;
 $$;
 
+-- RIP #TUFF v10 : clicker persistant, ameliorations et anti-spam serveur.
+create table if not exists public.clicker_states (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  power_level integer not null default 1 check (power_level between 1 and 20),
+  reactor_level integer not null default 0 check (reactor_level between 0 and 15),
+  combo_level integer not null default 0 check (combo_level between 0 and 12),
+  capacitor_level integer not null default 0 check (capacitor_level between 0 and 15),
+  combo_progress integer not null default 0 check (combo_progress >= 0),
+  total_clicks bigint not null default 0 check (total_clicks >= 0),
+  total_earned bigint not null default 0 check (total_earned >= 0),
+  tap_tokens numeric(12, 4) not null default 16 check (tap_tokens >= 0),
+  token_updated_at timestamptz not null default now(),
+  passive_updated_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.clicker_states enable row level security;
+revoke all on public.clicker_states from anon, authenticated;
+
+create or replace function public.clicker_upgrade_cost(upgrade_key_input text, current_level integer)
+returns bigint
+language sql
+immutable
+set search_path = public
+as $$
+  select case lower(trim(coalesce(upgrade_key_input, '')))
+    when 'power' then ceil(100 * power(1.72, greatest(coalesce(current_level, 1) - 1, 0)))::bigint
+    when 'reactor' then ceil(300 * power(1.80, greatest(coalesce(current_level, 0), 0)))::bigint
+    when 'combo' then ceil(500 * power(1.90, greatest(coalesce(current_level, 0), 0)))::bigint
+    when 'capacitor' then ceil(250 * power(1.65, greatest(coalesce(current_level, 0), 0)))::bigint
+    else null
+  end;
+$$;
+
+create or replace function public.clicker_click_power(level_input integer)
+returns bigint
+language sql
+immutable
+set search_path = public
+as $$
+  select greatest(1, coalesce(level_input, 1))::bigint * greatest(1, coalesce(level_input, 1))::bigint;
+$$;
+
+create or replace function public.clicker_passive_rate(level_input integer)
+returns bigint
+language sql
+immutable
+set search_path = public
+as $$
+  select case
+    when coalesce(level_input, 0) <= 0 then 0
+    else greatest(1, ceil(power(1.55, level_input - 1))::bigint)
+  end;
+$$;
+
+create or replace function public.clicker_ensure_state(target_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if target_user is null then raise exception 'auth_required'; end if;
+  perform public.ensure_wallet(target_user);
+  insert into public.clicker_states (user_id)
+  values (target_user)
+  on conflict (user_id) do nothing;
+end;
+$$;
+
+create or replace function public.clicker_settle_passive(target_user uuid)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clicker public.clicker_states;
+  raw_elapsed_seconds numeric;
+  elapsed_seconds numeric;
+  passive_rate bigint;
+  passive_gain bigint := 0;
+begin
+  perform public.clicker_ensure_state(target_user);
+
+  select * into clicker
+  from public.clicker_states
+  where user_id = target_user
+  for update;
+
+  raw_elapsed_seconds := greatest(0, extract(epoch from now() - clicker.passive_updated_at));
+  elapsed_seconds := least(28800, raw_elapsed_seconds);
+  passive_rate := public.clicker_passive_rate(clicker.reactor_level);
+  passive_gain := floor(elapsed_seconds * passive_rate)::bigint;
+
+  update public.clicker_states
+  set passive_updated_at = case
+        when passive_rate = 0 or raw_elapsed_seconds >= 28800 then now()
+        when passive_gain > 0 then passive_updated_at + make_interval(secs => passive_gain::double precision / passive_rate::double precision)
+        else passive_updated_at
+      end,
+      total_earned = total_earned + passive_gain,
+      updated_at = now()
+  where user_id = target_user;
+
+  if passive_gain > 0 then
+    perform public.casino_wallet_delta(target_user, passive_gain, 'clicker:passive', extract(epoch from now())::bigint::text);
+  end if;
+
+  return passive_gain;
+end;
+$$;
+
+create or replace function public.clicker_payload(target_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clicker public.clicker_states;
+  wallet public.user_wallets;
+  power_max constant integer := 20;
+  reactor_max constant integer := 15;
+  combo_max constant integer := 12;
+  capacitor_max constant integer := 15;
+begin
+  perform public.clicker_ensure_state(target_user);
+  select * into clicker from public.clicker_states where user_id = target_user;
+  select * into wallet from public.user_wallets where user_id = target_user;
+
+  return jsonb_build_object(
+    'wallet', to_jsonb(wallet),
+    'clicker', jsonb_build_object(
+      'power_level', clicker.power_level,
+      'reactor_level', clicker.reactor_level,
+      'combo_level', clicker.combo_level,
+      'capacitor_level', clicker.capacitor_level,
+      'combo_progress', clicker.combo_progress,
+      'combo_target', greatest(8, 24 - clicker.combo_level),
+      'total_clicks', clicker.total_clicks,
+      'total_earned', clicker.total_earned,
+      'points_per_click', public.clicker_click_power(clicker.power_level),
+      'points_per_second', public.clicker_passive_rate(clicker.reactor_level),
+      'max_clicks_per_second', 8 + clicker.capacitor_level,
+      'token_capacity', 16 + clicker.capacitor_level * 4
+    ),
+    'upgrades', jsonb_build_object(
+      'power', jsonb_build_object('level', clicker.power_level, 'max_level', power_max, 'cost', case when clicker.power_level < power_max then public.clicker_upgrade_cost('power', clicker.power_level) end),
+      'reactor', jsonb_build_object('level', clicker.reactor_level, 'max_level', reactor_max, 'cost', case when clicker.reactor_level < reactor_max then public.clicker_upgrade_cost('reactor', clicker.reactor_level) end),
+      'combo', jsonb_build_object('level', clicker.combo_level, 'max_level', combo_max, 'cost', case when clicker.combo_level < combo_max then public.clicker_upgrade_cost('combo', clicker.combo_level) end),
+      'capacitor', jsonb_build_object('level', clicker.capacitor_level, 'max_level', capacitor_max, 'cost', case when clicker.capacitor_level < capacitor_max then public.clicker_upgrade_cost('capacitor', clicker.capacitor_level) end)
+    )
+  );
+end;
+$$;
+
+create or replace function public.clicker_get_state()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  passive_gain bigint;
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+  passive_gain := public.clicker_settle_passive(auth.uid());
+  return public.clicker_payload(auth.uid()) || jsonb_build_object('passive_claimed', passive_gain);
+end;
+$$;
+
+create or replace function public.clicker_tap(tap_count_input integer default 1)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clicker public.clicker_states;
+  requested integer := greatest(1, least(coalesce(tap_count_input, 1), 50));
+  accepted integer := 0;
+  capacity numeric;
+  refill_rate numeric;
+  available_tokens numeric;
+  click_power bigint;
+  combo_target integer;
+  combo_hits integer;
+  tap_gain bigint := 0;
+  passive_gain bigint;
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+  passive_gain := public.clicker_settle_passive(auth.uid());
+
+  select * into clicker
+  from public.clicker_states
+  where user_id = auth.uid()
+  for update;
+
+  capacity := 16 + clicker.capacitor_level * 4;
+  refill_rate := 8 + clicker.capacitor_level;
+  available_tokens := least(
+    capacity,
+    clicker.tap_tokens + greatest(0, extract(epoch from now() - clicker.token_updated_at)) * refill_rate
+  );
+  accepted := least(requested, floor(available_tokens)::integer);
+  click_power := public.clicker_click_power(clicker.power_level);
+  combo_target := greatest(8, 24 - clicker.combo_level);
+  combo_hits := floor((clicker.combo_progress + accepted)::numeric / combo_target)::integer;
+
+  if accepted > 0 then
+    tap_gain := accepted * click_power
+      + combo_hits * click_power * (clicker.combo_level + 1);
+  end if;
+
+  update public.clicker_states
+  set tap_tokens = greatest(0, available_tokens - accepted),
+      token_updated_at = now(),
+      combo_progress = (combo_progress + accepted) % combo_target,
+      total_clicks = total_clicks + accepted,
+      total_earned = total_earned + tap_gain,
+      updated_at = now()
+  where user_id = auth.uid();
+
+  if tap_gain > 0 then
+    perform public.casino_wallet_delta(auth.uid(), tap_gain, 'clicker:tap', extract(epoch from clock_timestamp())::numeric::text);
+  end if;
+
+  return public.clicker_payload(auth.uid()) || jsonb_build_object(
+    'passive_claimed', passive_gain,
+    'last_action', jsonb_build_object(
+      'requested_clicks', requested,
+      'accepted_clicks', accepted,
+      'combo_hits', combo_hits,
+      'earned', tap_gain
+    )
+  );
+end;
+$$;
+
+create or replace function public.clicker_buy_upgrade(upgrade_key_input text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clicker public.clicker_states;
+  clean_key text := lower(trim(coalesce(upgrade_key_input, '')));
+  current_level integer;
+  maximum_level integer;
+  upgrade_cost bigint;
+  passive_gain bigint;
+begin
+  if auth.uid() is null then raise exception 'auth_required'; end if;
+  if clean_key not in ('power', 'reactor', 'combo', 'capacitor') then
+    raise exception 'clicker_invalid_upgrade';
+  end if;
+
+  passive_gain := public.clicker_settle_passive(auth.uid());
+  select * into clicker
+  from public.clicker_states
+  where user_id = auth.uid()
+  for update;
+
+  current_level := case clean_key
+    when 'power' then clicker.power_level
+    when 'reactor' then clicker.reactor_level
+    when 'combo' then clicker.combo_level
+    else clicker.capacitor_level
+  end;
+  maximum_level := case clean_key
+    when 'power' then 20
+    when 'reactor' then 15
+    when 'combo' then 12
+    else 15
+  end;
+
+  if current_level >= maximum_level then raise exception 'clicker_upgrade_max'; end if;
+  upgrade_cost := public.clicker_upgrade_cost(clean_key, current_level);
+  perform public.casino_wallet_delta(auth.uid(), -upgrade_cost, 'clicker:upgrade:' || clean_key, (current_level + 1)::text);
+
+  update public.clicker_states
+  set power_level = power_level + case when clean_key = 'power' then 1 else 0 end,
+      reactor_level = reactor_level + case when clean_key = 'reactor' then 1 else 0 end,
+      combo_level = combo_level + case when clean_key = 'combo' then 1 else 0 end,
+      capacitor_level = capacitor_level + case when clean_key = 'capacitor' then 1 else 0 end,
+      updated_at = now()
+  where user_id = auth.uid();
+
+  return public.clicker_payload(auth.uid()) || jsonb_build_object(
+    'passive_claimed', passive_gain,
+    'upgrade_bought', clean_key,
+    'upgrade_cost', upgrade_cost
+  );
+end;
+$$;
+
+revoke all on function public.clicker_upgrade_cost(text, integer) from public, anon, authenticated;
+revoke all on function public.clicker_click_power(integer) from public, anon, authenticated;
+revoke all on function public.clicker_passive_rate(integer) from public, anon, authenticated;
+revoke all on function public.clicker_ensure_state(uuid) from public, anon, authenticated;
+revoke all on function public.clicker_settle_passive(uuid) from public, anon, authenticated;
+revoke all on function public.clicker_payload(uuid) from public, anon, authenticated;
+revoke all on function public.clicker_get_state() from public, anon;
+revoke all on function public.clicker_tap(integer) from public, anon;
+revoke all on function public.clicker_buy_upgrade(text) from public, anon;
+
+grant execute on function public.clicker_get_state() to authenticated;
+grant execute on function public.clicker_tap(integer) to authenticated;
+grant execute on function public.clicker_buy_upgrade(text) to authenticated;
+
 create or replace function public.casino_wallet_delta(
   target_user uuid,
   point_delta bigint,

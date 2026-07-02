@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pulse Forge, le clicker spatial de RIP Casino avec progression persistante.">
+  <title>Pulse Forge | RIP Casino</title>
+  <link rel="icon" type="image/png" href="../../assets/brand/rip-logo.png">
+  <link rel="stylesheet" href="clicker.css?v=20260702-clicker1">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../home/home.html" aria-label="Accueil RIP Casino">
+      <img src="../../assets/brand/rip-logo.png" alt="">
+      <span>RIP CASINO</span>
+    </a>
+
+    <nav aria-label="Navigation principale">
+      <a href="../home/home.html">Jeux</a>
+      <a href="../casino/casino.html">Tables</a>
+      <a href="clicker.html" aria-current="page">Clicker</a>
+      <a href="https://discord.gg/9j5Nxuk2sH" target="_blank" rel="noreferrer">Discord</a>
+    </nav>
+
+    <div class="header-actions">
+      <div class="audio-controls" role="group" aria-label="Audio">
+        <button type="button" data-audio-menu aria-expanded="false" title="Reglages audio">SON</button>
+        <div class="audio-panel" data-audio-panel hidden>
+          <button type="button" data-sfx-toggle aria-pressed="true">Effets</button>
+          <button type="button" data-music-toggle aria-pressed="false">Musique</button>
+          <div class="audio-volume-row">
+            <label for="clicker-volume">Volume</label>
+            <output for="clicker-volume" data-volume-output>78%</output>
+          </div>
+          <input id="clicker-volume" data-volume-control type="range" min="0" max="100" step="1" value="78">
+        </div>
+      </div>
+      <div class="wallet" data-auth-only hidden>
+        <strong data-wallet-points>0</strong>
+        <small>POINTS</small>
+      </div>
+      <a class="login-button" href="../login/login.html?next=../clicker/clicker.html" data-guest-only>Connexion</a>
+      <button class="account-button" type="button" data-account-button data-auth-only hidden aria-expanded="false">
+        <span data-account-avatar>?</span>
+        <strong data-account-name>Compte</strong>
+      </button>
+      <div class="account-menu" data-account-menu hidden>
+        <strong data-menu-name>Compte</strong>
+        <span data-menu-email></span>
+        <button type="button" data-logout>Deconnexion</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="clicker-hero" aria-labelledby="clicker-title">
+      <p class="eyebrow">GENERATEUR DE POINTS</p>
+      <h1 id="clicker-title">PULSE FORGE</h1>
+      <p>Charge le noyau, developpe la station et alimente tes prochaines parties.</p>
+      <div class="hero-metrics" data-auth-only hidden>
+        <span><strong data-stat-per-click>1</strong> PAR IMPULSION</span>
+        <span><strong data-stat-per-second>0</strong> PAR SECONDE</span>
+        <span><strong data-stat-total-clicks>0</strong> IMPULSIONS</span>
+      </div>
+    </section>
+
+    <section class="ad-band ad-banner" data-ad-section hidden aria-label="Publicite principale">
+      <span class="ad-label">PUBLICITE</span>
+      <div class="ad-slot" data-ad-slot="responsive"></div>
+    </section>
+
+    <section class="auth-gate" data-guest-only>
+      <strong>CONNEXION REQUISE</strong>
+      <p>La progression du generateur est rattachee a ton compte.</p>
+      <a href="../login/login.html?next=../clicker/clicker.html">Se connecter</a>
+    </section>
+
+    <section class="forge-layout" data-auth-only hidden>
+      <aside class="ad-column" data-ad-section hidden aria-label="Publicite verticale longue">
+        <span class="ad-label">PUBLICITE</span>
+        <div class="ad-slot" data-ad-slot="tower"></div>
+      </aside>
+
+      <section class="forge-console" aria-labelledby="forge-heading">
+        <header>
+          <div>
+            <p class="eyebrow">NOYAU SYNCHRONISE</p>
+            <h2 id="forge-heading">Reacteur RIP</h2>
+          </div>
+          <span class="sync-state" data-sync-state>CONNEXION...</span>
+        </header>
+
+        <div class="reactor-stage" data-reactor-stage>
+          <button class="reactor-button" type="button" data-reactor-button aria-label="Generer des points">
+            <span class="reactor-rings" aria-hidden="true"></span>
+            <img src="../../assets/brand/rip-logo.png" alt="">
+            <strong>PULSER</strong>
+          </button>
+          <div class="click-effects" data-click-effects aria-hidden="true"></div>
+        </div>
+
+        <div class="combo-meter">
+          <div>
+            <span>COMBO</span>
+            <strong><span data-combo-progress>0</span>/<span data-combo-target>24</span></strong>
+          </div>
+          <progress data-combo-meter value="0" max="24">0</progress>
+        </div>
+
+        <div class="forge-stats">
+          <div><span>Puissance</span><strong>NIV. <span data-level-power>1</span></strong></div>
+          <div><span>Reacteur</span><strong>NIV. <span data-level-reactor>0</span></strong></div>
+          <div><span>Combo</span><strong>NIV. <span data-level-combo>0</span></strong></div>
+          <div><span>Cadence</span><strong><span data-stat-rate>8</span>/S</strong></div>
+        </div>
+      </section>
+
+      <aside class="ad-column ad-column-short" data-ad-section hidden aria-label="Publicite verticale courte">
+        <span class="ad-label">PUBLICITE</span>
+        <div class="ad-slot" data-ad-slot="skyscraper"></div>
+      </aside>
+    </section>
+
+    <section class="upgrade-section" data-auth-only hidden aria-labelledby="upgrade-title">
+      <header>
+        <div>
+          <p class="eyebrow">ATELIER</p>
+          <h2 id="upgrade-title">Ameliorations</h2>
+        </div>
+        <strong data-total-earned>0 POINT GAGNE</strong>
+      </header>
+
+      <div class="upgrade-grid">
+        <article class="upgrade-card" data-upgrade-card="power">
+          <span class="upgrade-icon">PWR</span>
+          <h3>Impact quantique</h3>
+          <p>Augmente les points de chaque impulsion.</p>
+          <div><span>Niveau <strong data-upgrade-level>1</strong>/<span data-upgrade-max>20</span></span></div>
+          <button type="button" data-buy-upgrade="power"><span data-upgrade-cost>100</span> PTS</button>
+        </article>
+
+        <article class="upgrade-card" data-upgrade-card="reactor">
+          <span class="upgrade-icon">AUTO</span>
+          <h3>Reacteur autonome</h3>
+          <p>Produit des points en continu, jusqu'a huit heures hors ligne.</p>
+          <div><span>Niveau <strong data-upgrade-level>0</strong>/<span data-upgrade-max>15</span></span></div>
+          <button type="button" data-buy-upgrade="reactor"><span data-upgrade-cost>300</span> PTS</button>
+        </article>
+
+        <article class="upgrade-card" data-upgrade-card="combo">
+          <span class="upgrade-icon">CMB</span>
+          <h3>Condensateur combo</h3>
+          <p>Declenche plus vite une impulsion bonus plus puissante.</p>
+          <div><span>Niveau <strong data-upgrade-level>0</strong>/<span data-upgrade-max>12</span></span></div>
+          <button type="button" data-buy-upgrade="combo"><span data-upgrade-cost>500</span> PTS</button>
+        </article>
+
+        <article class="upgrade-card" data-upgrade-card="capacitor">
+          <span class="upgrade-icon">SPD</span>
+          <h3>Cadence plasma</h3>
+          <p>Augmente la cadence acceptee et la reserve d'impulsions.</p>
+          <div><span>Niveau <strong data-upgrade-level>0</strong>/<span data-upgrade-max>15</span></span></div>
+          <button type="button" data-buy-upgrade="capacitor"><span data-upgrade-cost>250</span> PTS</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="sponsor-deck" data-auth-only hidden aria-label="Partenaires">
+      <div class="ad-band ad-rectangle" data-ad-section hidden>
+        <span class="ad-label">PUBLICITE</span>
+        <div class="ad-slot" data-ad-slot="rectangle"></div>
+      </div>
+      <div class="sponsor-note">
+        <strong>POINTS 100% VIRTUELS</strong>
+        <p>Les annonces financent le site. Seul Pulse Forge genere les points gratuits.</p>
+        <div class="ad-slot sponsor-action" data-ad-slot="onclick"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>RIP CASINO / PULSE FORGE</span>
+    <button type="button" data-ad-settings>Publicites</button>
+  </footer>
+
+  <div class="toast-stack" data-toast-stack aria-live="polite"></div>
+
+  <script src="../../shared/supabase/public-config.js?v=20260701-casino-rebuild3"></script>
+  <script src="../../shared/supabase/data-service.js?v=20260701-casino-rebuild3"></script>
+  <script src="../../shared/supabase/auth-session.js?v=20260701-casino-rebuild3"></script>
+  <script type="module" src="clicker-page.js?v=20260702-clicker1"></script>
+</body>
+</html>

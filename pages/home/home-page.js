@@ -7,10 +7,10 @@ import {
   playInstantGame
 } from "../../src/services/casino-service.js";
 import { casinoAudio } from "../../src/services/casino-audio-service.js?v=20260702-audio2";
-import { initializeAds } from "../../src/services/ad-service.js?v=20260702-ads1";
+import { initializeAds } from "../../src/services/ad-service.js?v=20260702-clicker1";
 
 const EURO_PER_POINT = 0.0001;
-const ADVANCED_GAMES = new Set(["blackjack", "ladder"]);
+const ADVANCED_GAMES = new Set(["blackjack", "ladder", "clicker"]);
 const SYMBOLS = {
   comet: "COMETE",
   moon: "LUNE",
@@ -268,7 +268,7 @@ async function loadCasino() {
     const [boosts, feed] = await Promise.all([getCasinoBoosts(), getCasinoLiveFeed(12)]);
     renderBoosts(boosts);
     renderLiveFeed(feed);
-    setStatus("Casino pret · 10 jeux · matchmaking public · points virtuels.", "ok");
+    setStatus("Casino pret · 10 jeux + Pulse Forge · points virtuels.", "ok");
   } catch (error) {
     console.error("Initialisation casino:", error);
     setStatus(errorMessage(error), "error");
@@ -443,6 +443,10 @@ function celebrate() {
 
 function openGame(gameKey) {
   if (ADVANCED_GAMES.has(gameKey)) {
+    if (gameKey === "clicker") {
+      window.location.href = "../clicker/clicker.html";
+      return;
+    }
     const tab = gameKey === "ladder" ? "ladder" : "blackjack";
     window.location.href = `../casino/casino.html?game=${tab}`;
     return;
