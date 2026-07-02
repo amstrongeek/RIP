@@ -2,6 +2,8 @@
 .env.*
 !.env.example
 node_modules/
+.wrangler/
+.wrangler-dry-run/
 dist/
 build/
 coverage/
